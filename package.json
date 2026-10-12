@@ -1,14 +1,17 @@
 {
-  "name": "aquaswarm-assignment-2",
-  "version": "0.2.0",
+  "name": "aquaswarm",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test tests/simulation.test.js",
+    "test": "node --test tests/simulation.test.js tests/behaviour.test.js tests/animation.test.js",
     "test:browser": "playwright test",
+    "compare:rules": "node scripts/compare-rules.mjs",
+    "compare:scenarios": "node scripts/compare-scenarios.mjs",
+    "perf": "node scripts/measure-performance.mjs",
     "record": "node scripts/record-demo.mjs"
   },
   "dependencies": { "three": "0.186.0" },

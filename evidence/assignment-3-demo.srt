@@ -1,0 +1,77 @@
+1
+00:00:00,000 --> 00:00:06,007
+AquaSwarm Assignment 3 · Minimum Viable Product Dongquan Yang (dy303) · CS 549 AI for Visual Computing Real-time capture of the production build · Chromium · WebGL (Three.js)
+
+2
+00:00:06,007 --> 00:00:16,010
+1 · Boids school, 100 fish
+Separation, alignment and cohesion with Reynolds steering. Uniform-grid neighbour search, fixed 60 Hz simulation step, seed 549. The FPS counter is top right.
+
+3
+00:00:16,010 --> 00:00:24,635
+2 · Procedural swimming
+Low-poly fish built in code. A vertex-shader travelling wave drives the tail; beat frequency follows each fish's speed, and the body bends and banks into turns.
+
+4
+00:00:24,635 --> 00:00:28,683
+2 · Procedural swimming
+Swim animation off: rigid bodies that only rotate to face their velocity.
+
+5
+00:00:28,683 --> 00:00:32,751
+2 · Procedural swimming
+Swim animation on again: tail beat, body bend and banking.
+
+6
+00:00:32,751 --> 00:00:43,771
+3 · Click to feed
+A click drops food at the water surface; it sinks. Fish within 13 units switch to Feed and seek it; the food is eaten gradually.
+
+7
+00:00:43,771 --> 00:00:50,793
+3 · One food point
+The MVP has a single food point: clicking again moves the food, and the feeding fish retarget.
+
+8
+00:00:50,793 --> 00:01:02,855
+4 · Add the predator
+One stationary predator at the tank centre. Fish that come within 8 units Flee and keep fleeing until 12 units away and at least 1 s has passed (hysteresis), so they do not flicker.
+
+9
+00:01:02,855 --> 00:01:17,868
+5 · Escape has priority over food
+Food dropped next to the predator. Feeding fish that get too close switch to Flee, then come back to the food once they are safe.
+
+10
+00:01:17,868 --> 00:01:25,970
+6 · Recovery
+Predator removed: fleeing fish slow down gradually and return to feeding or cruising.
+
+11
+00:01:25,970 --> 00:01:33,988
+7 · Live rule controls
+Alignment switched off: fish stop matching headings and the school loses a common direction.
+
+12
+00:01:33,988 --> 00:01:41,013
+7 · Live rule controls
+Alignment back on, separation weight raised to 3: wider spacing between neighbours.
+
+13
+00:01:41,013 --> 00:01:45,591
+7 · Pause and resume
+Space pauses the simulation and the swim animation together; R resets to the seed.
+
+14
+00:01:45,591 --> 00:02:06,741
+8 · Stress test: 100 → 2000 fish
+The built-in test measures FPS and simulation cost per level. The simulation keeps a 12 ms per-frame budget, so under overload simulated time slows before the frame rate collapses.
+
+15
+00:02:06,741 --> 00:02:21,241
+9 · Worst case: 2000 fish, one food point
+All 2000 fish crowd the food, so every grid cell is full and neighbour search approaches O(N²). FPS drops and the simulated clock (top right) falls behind real time: this is the current limit.
+
+16
+00:02:21,241 --> 00:02:27,253
+MVP complete One tank · 100 fish · one food point · one predator · cruise / feed / flee / recover · speed-driven tail motion Next (A4): a predator that hunts, more food and scenario presets

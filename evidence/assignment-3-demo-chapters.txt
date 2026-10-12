@@ -1,0 +1,13 @@
+0:00 Title
+0:06 1 · Boids school, 100 fish
+0:16 2 · Procedural swimming
+0:32 3 · Click to feed
+0:43 3 · One food point
+0:50 4 · Add the predator
+1:02 5 · Escape has priority over food
+1:17 6 · Recovery
+1:25 7 · Live rule controls
+1:41 7 · Pause and resume
+1:45 8 · Stress test: 100 → 2000 fish
+2:06 9 · Worst case: 2000 fish, one food point
+2:21 Summary and next steps

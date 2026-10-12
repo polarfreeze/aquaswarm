@@ -1,88 +1,117 @@
-# AquaSwarm · Assignment 2
+# AquaSwarm · Collective Behaviour Lab
 
-交互式鱼群行为实验室的第二阶段原型。按后续用户要求，当前工作区已扩展为三维运动，鱼缸为 48 × 34 × 18 世界单位；右上角课程标签已移除。范围依据上一级 `AquaSwarm_Project_Plan.md` 的 Assignment 2 里程碑，不代表老师已发布的正式评分细则。
+An interactive 3D fish-schooling simulation for the browser. One hundred fish follow the Boids rules (separation, alignment, cohesion). A small state machine adds feeding and fleeing. Each fish swims with a procedural tail beat driven by its own speed. You can drop food, add a predator, switch rules on and off, and stress-test the simulation up to 2000 fish.
 
-## 快速运行
+This is the Assignment 3 MVP. Its scope is the MVP defined in Assignment 2: one tank, 100 fish of one type, one food point and one stationary predator.
 
-需要 Node.js 20.19+ 或 22.12+（当前验证环境为 22.19.0）。在本目录打开终端：
+CS 549 AI for Visual Computing · Group AquaSwarm · Dongquan Yang (dy303) · Version 0.3.0 (Assignment 3 MVP)
 
-```powershell
+- **Live demo:** https://polarfreeze.github.io/aquaswarm/
+- **Demo video (2:28):** [Google Drive](https://drive.google.com/file/d/1dXwZbWmqc93Bux9iuLTf61M0L1bciW_A/view?usp=drive_link). The local copy is `evidence/assignment-3-demo.webm`, with captions in `.srt` and a chapter list.
+
+## Build and run
+
+You need Node.js 20.19+ or 22.12+ (tested with 22.19.0) and a browser with WebGL 2 and hardware acceleration enabled.
+
+```bash
 npm ci
 npm run dev
 ```
 
-打开终端显示的本地地址，默认 http://127.0.0.1:5173 。不要直接双击 `index.html`。首次安装需要网络；安装后运行与打包不依赖外部模型、字体、图片、API、后端或数据库。
+Open http://127.0.0.1:5173. Do not open `index.html` directly from disk.
 
-生产构建与预览：
+Production build:
 
-```powershell
+```bash
 npm run build
 npm run preview
 ```
 
-构建产物在 `dist/`，预览默认 http://127.0.0.1:4173 。浏览器需支持 WebGL 2，建议开启硬件加速。
+The output goes to `dist/`. It uses relative asset paths (`base: './'`), so the folder works from any static host, including a GitHub Pages project subpath. `.github/workflows/deploy-pages.yml` tests, builds and deploys the app on every push to `main`. To turn it on, set the repository's **Settings → Pages → Source** to "GitHub Actions".
 
-## 本阶段实现
+After `npm ci` the app needs no network: there are no external models, fonts, images, APIs or backend.
 
-- 100 条低多边形鱼，3D 水族箱，完整 x/y/z 三维运动，包含上下游动、俯仰朝向和六面边界。
-- Separation（分离）、Alignment（对齐）、Cohesion（聚合）均有独立开关和 0–3 权重滑块。关闭规则保留其滑块值，重新开启可继续比较。
-- Pause / Resume、Reset；重置恢复所有参数、开关、相机、计时和种子 549 的初始鱼群，并自动运行。
-- 鼠标拖动旋转、滚轮缩放、Perspective / Top view；实时鱼数、平均速度、全群朝向一致度、模拟时间和渲染 FPS。
-- 空格暂停/继续，R 重置；焦点位于输入框或按钮时使用控件原生键盘操作，不抢占快捷键。
-- 窄屏布局、键盘操作、WebGL 初始化失败提示。
+## Using it
 
-不包括 Assignment 3 以后的身体/尾部摆动、速度驱动动画、投喂、捕食者、状态机、障碍、选中鱼调试层。静态尾鳍只用于识别鱼形，不能作为已完成 Animation 支柱的证据。
-
-## 复现演示（约 45–55 秒）
-
-1. 默认运行 7 秒，观察各条鱼逐渐形成共同方向。
-2. 关闭 Separation，观察邻近鱼靠得更近。
-3. Reset 后关闭 Alignment，观察朝向协调减弱。
-4. Reset 后关闭 Cohesion，观察局部群体更易分散。
-5. Reset 后提高 Separation，观察间距变化；切到 Top view。
-6. Pause 冻结鱼群，Resume 恢复，最后 Reset。
-
-规则变化需要几秒积累。关闭分离后鱼可以重叠，这是该对比的预期效果，本阶段没有实体碰撞求解。水族箱边界始终生效，不属于三个可关闭的 Boids 规则。
-
-`evidence/assignment-2-demo.webm` 是原平面运动版本的实际浏览器录屏（不是当前三维版本），带演示步骤字幕；`desktop.png` 与 `mobile.png` 为运行截图。`VALIDATION.md` 记录实际验证结果和限制。
-
-## 模块与算法
-
-| 文件 | 责任 |
+| Action | How |
 | --- | --- |
-| `src/simulation.js` | 与 Three.js 解耦的纯模拟、可复现随机数、三项规则、边界、数值限制、固定时步 |
-| `src/scene.js` | Three.js 相机、灯光、水族箱、实例化静态鱼模型；朝向直接匹配速度 |
-| `src/main.js` | 控件、模拟循环、暂停/重置、可见性恢复、实时统计 |
-| `src/style.css` | 桌面/移动布局与控件样式 |
-| `tests/` | 算法不变量和真实浏览器操作验证 |
-| `scripts/` | 同种子规则对比、实际浏览器演示录制 |
+| Drop food | Click the water. Food sinks and is eaten gradually. There is one food point: a new click moves it. Clear food (C) removes it. |
+| Predator | Add predator (P). It stays at the centre of the tank and never eats fish; fish that swim close flee. |
+| Camera | Drag to orbit, scroll to zoom toward the pointer. Perspective and Top view buttons. Expand hides the side panel. |
+| Rules | Each Boids rule has its own on/off switch and a 0–3 weight slider. |
+| Behaviour & display | Swim animation on/off, colour by state, and a legend of the behaviour states. |
+| Stress test | Population slider (10–2000), plus an automatic run at 100 → 2000 fish that reports FPS, simulation ms per step, and real-time rate. |
+| Transport | Pause/Resume (Space) and Reset (R). Reset restores the seed, rules, population, food, predator and camera. |
 
-每步先读取所有鱼的旧位置/速度，计算后统一替换状态，避免遍历顺序影响行为。每条鱼在 7 世界单位的三维球形感知半径内寻找邻居；1.65 单位内做反距离分离。对齐追踪邻居平均方向，聚合追踪邻居中心。各规则 steering 为期望速度减当前速度，单项转向力上限 2.4，加权合力上限 7；速度限制在 1.2–3.8 世界单位/秒。
+Fish colours show their state: orange = cruise, green = feed, red = flee.
 
-默认权重：分离 2.40、对齐 1.10、聚合 0.55。边界使用预测转向，另有硬边界反射兜底。鱼群是 Boids 点代理，不保证鱼身永不相交。全邻居扫描为 O(N²)，100 条规模足够，无需为此阶段引入空间索引。
+## How it works
 
-模拟固定步长 1/60 秒，每个渲染帧最多积累 0.1 秒；页面隐藏时停止推进，恢复时清空时钟积累。低帧率或录屏环境中模拟时间可能慢于真实时间，这是避免补算引起跳跃的有意选择。
+| File | Responsibility |
+| --- | --- |
+| `src/simulation.js` | Pure simulation, independent of Three.js: seeded RNG, Boids, uniform-grid neighbour search, behaviour state machine, food point, predator, fixed-step clock. |
+| `src/animation.js` | `SwimAnimator`: smoothed yaw/pitch/bank, tail-beat phase and amplitude, turn bend. Pure JavaScript, so it is unit-tested. |
+| `src/fishGeometry.js` | Procedural low-poly fish and predator meshes, plus the vertex-shader swim deformation. |
+| `src/scene.js` | Three.js scene: instanced school and predator, shadows, food, camera. |
+| `src/main.js` | UI, input, main loop, stress test, and the test hooks (`?test` only). |
 
-界面的 Heading agreement 是全群单位方向向量平均值的模（0–100%）；两个方向相反的有序小群可能得到低值，因此它不等于局部有序度。Mean speed 是世界单位/秒，不是真实鱼的速度。
+**Boids.** Each fish reads the previous step's state (double-buffered), so the order of updates does not matter.
+- Neighbours are found with a uniform grid of 7-unit cells (the perception radius).
+- Separation applies within 1.65 units.
+- Each rule uses Reynolds steering (desired velocity − current velocity). Each rule's force is capped at 2.4 and the total at 7.
+- A cruise-speed term keeps fish near 2.8 u/s, and speed stays between 1.2 and 3.8 u/s.
+- Walls use predictive steering, with a hard reflection as a fallback.
 
-## 验证与重新录屏
+**Behaviour.** Priority is flee > feed > cruise.
+- Fish **feed** when a pellet is within 13 units and stop beyond 17 units.
+- Fish **flee** when the predator is within 8 units. They keep fleeing until it is beyond 12 units and at least 1 s has passed.
+- The gap between the enter and exit distances (hysteresis) stops fish flickering between states.
+- Fleeing fish swim away from the predator at up to 6.4 u/s. When the threat is gone, they slow down gradually instead of snapping back.
+- The food is eaten gradually. With three or more fish eating, it lasts about 12 s; uneaten food expires after 45 s.
 
-```powershell
+**Animation.**
+- Tail-beat frequency is (0.8 + 0.75 × speed) Hz, and amplitude also grows with speed.
+- The tail-beat phase is integrated over time, so a change in speed never makes the tail jump.
+- The body bends into turns and banks with the yaw rate.
+- The vertex shader applies a travelling wave whose strength grows toward the tail, using per-instance attributes. The whole school is one draw call.
+- Animation advances on simulated time only, so pausing freezes it too.
+
+**Timing.**
+- The simulation runs fixed 1/60 s steps.
+- Each frame runs at most 4 steps, and at most 12 ms of simulation work.
+- When the load is too high, simulated time slows below real time while rendering stays responsive. The stress test reports this as the "real-time" percentage.
+
+## Tests and evidence
+
+```bash
 npm test
 npx playwright install chromium
 npm run test:browser
-node scripts/compare-rules.mjs
-npm run record
+npm run compare:scenarios
+npm run compare:rules
+npm run build && npm run perf
+npm run build && npm run record
 ```
 
-`npm test` 包含 10 分钟**模拟时间**检查，计算会快于真实时间，不等于完成了 10 分钟浏览器性能测试。浏览器测试会自动启动 4173 端口；录屏脚本自行启动 4175 端口并在结束后关闭。录屏为约 48 秒 WebM，记录了自动化环境的帧率；不要把它当成展示电脑的性能承诺。
+- `npm test`: 34 Node tests covering:
+  - Boids invariants and 10-minute runs, one with cruising only and one with the full feed/flee loop.
+  - The grid neighbour search matches a brute-force search.
+  - Determinism and overload behaviour of the fixed clock.
+  - Feeding, fleeing, priority, hysteresis and recovery.
+  - Swim-animation properties.
+- `npm run test:browser`: 4 Playwright tests on the real app:
+  - Controls, pause/resume and reset.
+  - Click to feed (one food point), predator, escape priority, recovery and display options.
+  - Population slider and stress test.
+  - Mobile layout.
+- `compare:scenarios` and `compare:rules` write seeded comparisons to `evidence/*-a3.json`.
+- `perf` measures the production build on this machine's GPU at 1920×1080. It runs 5 minutes steady state, then the stress test, then a crowding worst case, and writes `evidence/performance-a3.json`.
+- `record` makes the demo video.
 
-仅在 URL 带 `?test` 时提供只读 `window.aquaswarmSnapshot()`，用于检查真正运行的应用状态；普通入口没有该接口。它不能修改模拟。
+`VALIDATION.md` summarises the results.
 
-## 版本与协作
+The `?test` query adds read-only hooks (`window.aquaswarmSnapshot()` and projection helpers) for the browser tests. The normal page does not expose them.
 
-版本 `0.2.0`，依赖由 `package-lock.json` 锁定。原 Assignment 2 稳定源码包位于 `releases/`，保留平面运动版本；当前三维改动请使用本工作区源码。未创建远程仓库、PR 或进行 Canvas 提交。
+## Credits
 
-本次实现与自动化验证由 Codex 辅助完成。团队实际成员姓名、NetID、分工和教师提交材料应由成员填写，未虚构贡献。
-
-实现参考：[Three.js 官方文档](https://threejs.org/docs/)、[Vite 官方指南](https://vite.dev/guide/)。鱼模型由几何体程序化生成，无第三方美术资产；概念图未当作运行结果使用。
+The fish models are generated in code, so there are no third-party art assets. Libraries: [Three.js](https://threejs.org/) and [Vite](https://vite.dev/). Development was assisted by AI coding tools: Codex for Assignment 2, and Claude Code for Assignment 3. The Assignment 3 report has the details.

@@ -1,0 +1,32 @@
+{
+  "seed": 549,
+  "seconds": 30,
+  "sampling": "One sample per second from 10 to 29 seconds. Same seed and all other weights fixed.",
+  "caveat": "Descriptive results for this seed and tank, not universal guarantees or a scientific study. Assignment 3 version (adds cruise speed control); the Assignment 2 data is in rule-comparison-3d.json.",
+  "results": [
+    {
+      "disabled": "none",
+      "meanNearestSpacing": 1.647607569517899,
+      "meanLocalHeadingCosine": 0.9596869172613414,
+      "rmsSchoolRadius": 13.309919226680767
+    },
+    {
+      "disabled": "separation",
+      "meanNearestSpacing": 0.03913096470161852,
+      "meanLocalHeadingCosine": 0.9491588342229201,
+      "rmsSchoolRadius": 13.282952218451621
+    },
+    {
+      "disabled": "alignment",
+      "meanNearestSpacing": 2.6025046006781,
+      "meanLocalHeadingCosine": 0.011753230271469144,
+      "rmsSchoolRadius": 11.508294025708132
+    },
+    {
+      "disabled": "cohesion",
+      "meanNearestSpacing": 1.7719726122066397,
+      "meanLocalHeadingCosine": 0.9095926833824158,
+      "rmsSchoolRadius": 12.757221900895972
+    }
+  ]
+}

@@ -25,6 +25,6 @@ for(const disabled of [null,...RULES]) {
   results.push({disabled:disabled??'none',meanNearestSpacing:spacing/samples,meanLocalHeadingCosine:alignment/samples,rmsSchoolRadius:radius/samples});
 }
 await mkdir('evidence',{recursive:true});
-await writeFile('evidence/rule-comparison-3d.json',JSON.stringify({seed:CONFIG.seed,seconds:30,sampling:'One sample per second from 10 to 29 seconds. Same seed and all other weights fixed.',
-  caveat:'Descriptive results for this seed and tank, not universal guarantees or a scientific study.',results},null,2));
+await writeFile('evidence/rule-comparison-a3.json',JSON.stringify({seed:CONFIG.seed,seconds:30,sampling:'One sample per second from 10 to 29 seconds. Same seed and all other weights fixed.',
+  caveat:'Descriptive results for this seed and tank, not universal guarantees or a scientific study. Assignment 3 version (adds cruise speed control); the Assignment 2 data is in rule-comparison-3d.json.',results},null,2));
 console.table(results);

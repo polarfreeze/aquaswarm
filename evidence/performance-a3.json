@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-12T19:21:02.199Z",
+  "browser": "Chromium 145.0.7632.6 (headless, GPU via ANGLE)",
+  "renderer": "ANGLE (Intel, Intel(R) Arc(TM) Graphics (0x00007D55) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "os": "win32 10.0.26200",
+  "cpu": "Intel(R) Core(TM) Ultra 5 125H",
+  "viewport": "1920 × 1080",
+  "build": "vite production build (npm run build)",
+  "note": "Headless rAF is not vsync-capped; a visible browser tab is limited to the display refresh rate. Simulation is fixed-step 60 Hz with at most 4 steps and a 12 ms step budget per frame; when overloaded, simulated time slows (see simulatedPerRealSecond).",
+  "steadyState100FishFoodAndPredator": {
+    "seconds": 300.00120000000004,
+    "frames": 36002,
+    "meanFps": 120.0061866419201,
+    "p95FrameMs": 8.400000000023283,
+    "worstFrameMs": 16.800000000017462,
+    "simulatedPerRealSecond": 1.0000515553495168,
+    "fish": 100,
+    "states": {
+      "cruise": 0,
+      "feed": 56,
+      "flee": 44
+    }
+  },
+  "stressTest": [
+    {
+      "count": 100,
+      "fps": 120.0235517912968,
+      "stepMs": 0.18571429862115615,
+      "realtime": 1.0039705904554983
+    },
+    {
+      "count": 250,
+      "fps": 120.02355179129363,
+      "stepMs": 0.4187969946323481,
+      "realtime": 1.0039705904554717
+    },
+    {
+      "count": 500,
+      "fps": 120.03442496716292,
+      "stepMs": 1.201503744699005,
+      "realtime": 1.004061542178178
+    },
+    {
+      "count": 1000,
+      "fps": 120.0235517912968,
+      "stepMs": 3.8090225556739292,
+      "realtime": 1.0039705904555516
+    },
+    {
+      "count": 1500,
+      "fps": 120.02898813298053,
+      "stepMs": 7.75112782026592,
+      "realtime": 1.004016064257057
+    },
+    {
+      "count": 2000,
+      "fps": 60.240963855422,
+      "stepMs": 13.673437487334013,
+      "realtime": 0.9662710994352888
+    }
+  ],
+  "stressSummary": "At least 30 FPS up to 2000 fish on this device. Population restored to 100.",
+  "crowding2000FishOnePellet": {
+    "seconds": 5.007200000000012,
+    "frames": 171,
+    "meanFps": 34.15082281514611,
+    "p95FrameMs": 33.79999999998836,
+    "worstFrameMs": 41.600000000034925,
+    "simulatedPerRealSecond": 0.572508920487797,
+    "fish": 2000,
+    "states": {
+      "cruise": 205,
+      "feed": 1795,
+      "flee": 0
+    }
+  },
+  "errors": []
+}

@@ -1,0 +1,83 @@
+{
+  "seed": 549,
+  "fish": 100,
+  "seconds": 60,
+  "predatorRemovedAt": 40,
+  "pellets": [
+    {
+      "x": 5,
+      "y": 11,
+      "z": 3
+    }
+  ],
+  "predator": {
+    "x": 0,
+    "y": 9,
+    "z": 0,
+    "stationary": true
+  },
+  "thresholds": {
+    "feedEnter": 13,
+    "feedExit": 17,
+    "fleeEnter": 8,
+    "fleeExit": 12,
+    "fleeHold": 1
+  },
+  "caveat": "One seed and one tank layout. Descriptive evidence for the MVP behaviour loop, not a general result.",
+  "results": [
+    {
+      "scenario": "food only",
+      "meanFishPerState": {
+        "cruise": 83.38,
+        "feed": 16.62,
+        "flee": 0
+      },
+      "peakFeeding": 81,
+      "peakFleeing": 0,
+      "firstFeedingSeconds": 0.02,
+      "firstFleeingSeconds": null,
+      "allFoodGoneSeconds": 13.37,
+      "feedToFleeSwitches": 0,
+      "fleeEpisodes": 0,
+      "shortestFleeSeconds": null,
+      "recoverySecondsAfterPredatorRemoved": null,
+      "maxSpeed": 4.32
+    },
+    {
+      "scenario": "predator only",
+      "meanFishPerState": {
+        "cruise": 98.89,
+        "feed": 0,
+        "flee": 1.11
+      },
+      "peakFeeding": 0,
+      "peakFleeing": 16,
+      "firstFeedingSeconds": null,
+      "firstFleeingSeconds": 0.02,
+      "allFoodGoneSeconds": null,
+      "feedToFleeSwitches": 0,
+      "fleeEpisodes": 48,
+      "shortestFleeSeconds": 1.07,
+      "recoverySecondsAfterPredatorRemoved": 0.02,
+      "maxSpeed": 5.55
+    },
+    {
+      "scenario": "food + predator",
+      "meanFishPerState": {
+        "cruise": 69.15,
+        "feed": 22.07,
+        "flee": 8.78
+      },
+      "peakFeeding": 68,
+      "peakFleeing": 25,
+      "firstFeedingSeconds": 0.02,
+      "firstFleeingSeconds": 0.02,
+      "allFoodGoneSeconds": 27.63,
+      "feedToFleeSwitches": 298,
+      "fleeEpisodes": 327,
+      "shortestFleeSeconds": 1.07,
+      "recoverySecondsAfterPredatorRemoved": 0.02,
+      "maxSpeed": 5.58
+    }
+  ]
+}

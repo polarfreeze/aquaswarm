@@ -1,76 +1,90 @@
-# 当前三维版本验证记录
+# Validation · Assignment 3 MVP (v0.3.0)
 
-2026-09-23 后续更新：按用户要求将实际鱼缸从 34 × 24 × 6 扩大至 48 × 34 × 18，并移除页面课程标签。Boids 距离、分离、对齐、聚合、速度上限和统计均改为三维；模型通过偏航与俯仰匹配速度，眼睛与鱼身使用相同变换。
+Date: 2026-10-12. Machine: Windows 11 (10.0.26200), Intel Core Ultra 5 125H with Intel Arc graphics, Node 22.19.0. The checks below follow the MVP proof defined in Assignment 2. The Assignment 2 record (2D/3D Boids prototype) is in git history at commit `d8f03bb`.
 
-验证：12 项模拟测试全部通过，包含 600 秒三维模拟、8 种开关组合、三维高度变化、垂直邻域排除、垂直规则转向、顶底边界、零距离、暂停和重置；2 项浏览器回归测试通过；生产构建通过。843 × 982 实际页面检查中，约 1.8 秒内有 97 条鱼高度变化超过 0.05 单位，未发现课程标签残留。最新规则对比为 evidence/rule-comparison-3d.json，截图为 evidence/3d-843.png。旧录屏、发布 ZIP 与下文数据仅代表早期平面版本。
+## MVP scope
 
-# 历史：Assignment 2 平面版本验证记录
-
-验证日期：2026-09-23。对照项目计划的 Assignment 2 内部里程碑，不宣称已获课程验收或已提交 Canvas。
-
-## 交付范围
-
-| 计划要求 | 实现与证据 |
+| A2 MVP requirement | Evidence |
 | --- | --- |
-| 约 100 个简化鱼形体 | 固定 100 条实例化低多边形鱼，3D 水族箱；运行截图与视频 |
-| 分离、对齐、聚合滑块 | 0–3，步长 0.05；浏览器键盘操作验证滑块输入与显示 |
-| 三项规则独立开关 | 每项可关闭/重开；有单项转向方向测试和同种子对比数据 |
-| 暂停、继续、重置 | 暂停前后位置完全相同；继续推进；重置恢复全部默认参数、种子、相机 |
-| 速度有限、位置无 NaN | 10 分钟模拟时间与 8 种开关组合、最大权重测试 |
-| 默认不长期挤成一点 | 长时运行每秒检查平均最近邻间距，保持大于 0.65 世界单位；截图有可辨识的局部鱼群 |
-| 稳定版本、30–60 秒录屏 | 0.2.0 源码快照、依赖锁文件、约 52 秒实际浏览器录屏 |
+| One tank, 100 fish of one type | Default scene; `tests/simulation.test.js` |
+| Cruise, feed, flee, recover; escape priority | `tests/behaviour.test.js` (10 tests); `evidence/scenario-comparison-a3.json`; demo video sections 3–6 |
+| One food point | Click to drop food that sinks, is eaten gradually and expires after 45 s. A new click moves the food point (tested) |
+| One stationary predator | Fixed at the tank centre; it never moves and never removes fish (tested) |
+| Tail motion follows speed; smooth turning | `tests/animation.test.js` (frequency and amplitude rise with speed, gradual turns, bend into turns, phase offsets, pause freezes the pose); demo video section 2 with animation off/on |
+| Controls and behaviour counts | Browser tests; live cruise/feed/flee counts |
+| Pause / reset | Unit and browser tests: positions and tail phases are identical while paused; reset restores seed, rules, population, food, predator and camera |
+| 10-minute simulation checks | Two 600 s runs: default cruise, and the full loop with food every 20 s and the predator throughout. All values stay finite, fish stay in bounds, and speeds stay within limits |
+| ≥ 30 FPS average, 1920×1080, 100 fish | See Performance below |
 
-## 自动化结果
+## Automated results
 
-`npm test`：9 项全部通过。
+- `npm test`: 34/34 pass.
+  - Simulation (17):
+    - Invariants, the two 10-minute runs, and all rule combinations at extreme weights.
+    - Reset and determinism.
+    - Grid neighbour search equals brute force; traversal order does not change the result.
+    - Zero-distance neighbours.
+    - Fixed clock: per-frame step cap and 12 ms budget.
+    - 2000 fish with food and predator.
+  - Behaviour (10) and animation (7).
+- `npm run test:browser`: 4/4 pass in Chromium. Covered:
+  - Rule sliders and switches by keyboard, pause/resume, reset, camera views, shortcuts.
+  - Click-to-feed versus drag-to-orbit; a second click moves the single food point.
+  - Food next to the predator shows both feed and flee, then recovery after removing the predator.
+  - Display toggles (swim animation, colour by state), population slider, stress test.
+  - 390 × 844 mobile layout.
+  - Zero page errors.
+- `npm run build`: passes. The single JS bundle is about 600 kB (154 kB gzip), mostly Three.js.
 
-1. 默认配置连续 600 秒模拟时间，100 条鱼始终有限、在边界内，速度保持 1.2–3.8 世界单位/秒，未坍缩为一点。
-2. 8 种规则开关组合，各运行 20 秒，权重全部设为 3，验证边界与速度。
-3. 重置恢复默认位置、速度、参数、开关、运行状态与计时。
-4. 相同种子重复运行一致；逆转遍历顺序后单步误差小于 1e-10。
-5. 100 条鱼位置完全重合、速度为零时仍能恢复有限状态并分离。
-6. 两鱼受控场景中，分离远离邻居、对齐转向邻居方向、聚合靠近邻居。
-7. 禁用规则与将该规则权重设为零得到相同轨迹。
-8. 暂停冻结；异常长帧限制补算；可见性切换后时钟清空，不追赶长时间缺帧。
-9. 同样真实时长下，30 与 60 次渲染调度得到相同模拟状态。
+## Scenario comparison (seed 549, 60 s, predator removed at 40 s)
 
-`npm run test:browser`：2 项全部通过。Chromium 真实页面验证了 WebGL 画布、100 条鱼、模拟推进、全部三项滑块和开关、暂停/继续、重置、相机按钮、空格/R 快捷键，以及 390 × 844 手机布局和控件可达性。页面 JavaScript 错误为零。
+| Scenario | Mean cruise / feed / flee | Peak feed | Peak flee | All food gone | Feed→flee switches | Shortest flee | Max speed |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Food only | 83.38 / 16.62 / 0 | 81 | 0 | 13.37 s | 0 | — | 4.32 |
+| Predator only | 98.89 / 0 / 1.11 | 0 | 16 | — | 0 | 1.07 s | 5.55 |
+| Food + predator | 69.15 / 22.07 / 8.78 | 68 | 25 | 27.63 s | 298 | 1.07 s | 5.58 |
 
-`npm run build`：通过。稳定源码 ZIP 已解压到一个全新临时目录，重新执行 `npm ci` 与 `npm run build` 均通过，生成相同的 JS/CSS 构建文件名。Three.js 导致单个压缩 JS 包约 574 kB，Vite 提示超过 500 kB 的体积建议；这是构建警告，非运行失败。本地课堂原型暂不为这个体积拆分引擎。
+Food is dropped at (5, 3), close to the stationary predator at the tank centre.
 
-## 规则对比
+- Escape has priority: feeding fish switched straight to flee 298 times.
+- No flee episode was shorter than the 1 s hold.
+- Every fish was out of flee 0.02 s after the predator was removed. The shortest-flee check confirms they had already served their hold.
+- Food takes about twice as long to finish when the predator is present (27.6 s versus 13.4 s), because fish keep breaking off to flee.
+- These results describe one seed and one layout; they are not a general proof.
 
-`node scripts/compare-rules.mjs` 使用种子 549、同一初始鱼群、相同其余参数。每组运行 30 秒模拟时间，取第 10–29 秒共 20 次采样平均。原始结果在 `evidence/rule-comparison.json`。
+## Rule comparison (`evidence/rule-comparison-a3.json`)
 
-| 关闭的规则 | 平均最近邻间距 | 局部方向余弦均值 | 鱼群 RMS 半径 |
+| Disabled rule | Mean nearest spacing | Local heading cosine | RMS school radius |
 | --- | ---: | ---: | ---: |
-| 无（默认） | 1.527 | 0.925 | 7.217 |
-| 分离 | 0.007 | 0.984 | 2.490 |
-| 对齐 | 1.394 | 0.048 | 7.168 |
-| 聚合 | 1.529 | 0.792 | 8.120 |
+| none | 1.648 | 0.960 | 13.31 |
+| separation | 0.039 | 0.949 | 13.28 |
+| alignment | 2.603 | 0.012 | 11.51 |
+| cohesion | 1.772 | 0.910 | 12.76 |
 
-间距与半径单位均为世界单位。局部方向余弦是感知半径内成对鱼的单位方向点积均值，取值 -1 到 1；与界面展示的全群 Heading agreement 不同。
+Turning cohesion off did not increase the school radius, the same as in A2. Alignment and the tank walls are enough to keep the fish together at this tank size.
 
-在这个固定场景中，关闭分离导致明显重合；关闭对齐显著削弱局部共同方向；关闭聚合使整体覆盖范围增大。这里只是可复现的行为解释，不是对所有种子、权重、边界条件的普遍证明。
+## Performance (`evidence/performance-a3.json`)
 
-## 视频与性能边界
+Measured on the production build in Chromium 145 (headless, real GPU: Intel Arc via ANGLE/D3D11) at 1920 × 1080. Headless frames are not vsync-capped, so 120 FPS is the browser's frame cap there. A visible tab is capped at the display refresh rate.
 
-`evidence/assignment-2-demo.webm` 是浏览器页面实际录制，演示默认巡游、三项规则关闭比较、提高分离权重、俯视、暂停/继续、重置。演示步骤字幕由录屏脚本附加，不是模拟界面的永久控件。
+- **Steady state, 5 minutes, 100 fish, stationary predator and new food every 20 s:** 36,002 frames, 120.0 FPS mean, p95 frame time 8.4 ms, worst frame 16.8 ms. The simulation kept pace with real time (1.000×). This meets the ≥ 30 FPS target and the 60 FPS goal.
+- **In-app stress test** (run right after the 5-minute test):
 
-测量设备：Windows 10.0.26200，Intel Core Ultra 5 125H；Headless Chromium 145.0.7632.6，1440 × 1000，100 条鱼，录屏开启，允许软件 WebGL 回退。精确测量时长、帧数、平均 FPS、帧间隔 P95、浏览器版本和章节时间保存在 `evidence/browser-measurement.json`。
+| Fish | FPS | Sim ms / step | Real-time |
+| ---: | ---: | ---: | ---: |
+| 100 | 120.0 | 0.19 | 100% |
+| 250 | 120.0 | 0.42 | 100% |
+| 500 | 120.0 | 1.20 | 100% |
+| 1000 | 120.0 | 3.81 | 100% |
+| 1500 | 120.0 | 7.75 | 100% |
+| 2000 | 60.2 | 13.67 | 97% |
 
-最终录屏测量 51.36 秒、1,562 个采样帧，平均 30.41 FPS、中位约 30.03 FPS，帧间隔 P95 为 50 ms；视频容器总时长为 53.12 秒，包含开头载入画面。这是自动化录屏环境的数据，不能等同于用户展示电脑开启硬件加速后的性能。10 分钟测试在纯模拟层加速执行，并未冒充 10 分钟真实浏览器稳定性测试。Assignment 2 所需功能已验证，最终项目阶段的全套性能验收仍未实施。
+- **Worst case, 2000 fish crowding the one food point:** 34.2 FPS, and simulated time at 0.57× real time.
+- **Run-to-run variation.** An earlier run of the same measurement on a warm laptop gave per-step costs about 1.7× higher: 23.5 ms at 2000 fish, with 34 FPS and 57% real time, and 26 FPS at 0.43× in the crowding case. CPU speed on this laptop changes with temperature and power state, so treat the numbers for more than 1000 fish as a range, not a constant.
 
-## 实际修正与限制
+## Known limits
 
-- 首轮默认权重（1.65 / 1.10 / 0.75）长时测试中平均最近邻间距最低降至 0.545；将默认分离提高至 2.40、聚合降低至 0.55 后，保持原检查阈值并通过测试。
-- 零距离邻居通过按 ID 构造反向分离向量避免除零；全帧双缓冲更新避免遍历顺序偏差。
-- 浏览器自动化最初用 `fill` 操作 range 导致测试驱动报错，改为 Home / ArrowRight 的真实键盘输入。标题层允许鼠标穿透，快捷键测试改为点击实际画布获得背景焦点。
-- 鱼模型是静态低多边形体，朝向直接匹配速度；尚无摆尾、平滑转身等 Assignment 3 动画。
-- 未实现完整身体碰撞，极端配置或关闭分离时允许鱼体穿插。槽壁转向是简化环境约束，不是通用避障。
-- 手机可完整操作，但窄屏下鱼更小，课堂演示建议桌面宽屏；页面支持纵向滚动。
-- 无托管站点、远程仓库或 PR；提供本地运行入口与稳定源码包。成员分工、NetID 和官方提交由团队实际填写。
-
-## 范围完成结论
-
-本次完成到项目计划的 Assignment 2，后续里程碑没有提前实现或标记完成。计划原始文件及 Assignment 1 材料保持原样。
+- **Crowding.** Dense crowding degrades the neighbour search toward O(N²). The 12 ms frame budget keeps the view responsive by slowing simulated time instead of dropping frames. Planned fix: cap the number of neighbours per fish.
+- **Collisions.** Fish are point agents, with no body collision. With separation off they overlap. There are no obstacles yet (planned for A5).
+- **Measurement setup.** Measured in headless Chromium on the GPU, not in a visible Chrome tab on the presentation laptop. That check is planned for A4.
+- **Video FPS.** FPS during the video recording is lower than in the measurement because screen capture costs frames.
