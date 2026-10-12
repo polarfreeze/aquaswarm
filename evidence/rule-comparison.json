@@ -1,0 +1,32 @@
+{
+  "seed": 549,
+  "seconds": 30,
+  "sampling": "One sample per second from 10 to 29 seconds. Same seed and all other weights fixed.",
+  "caveat": "Descriptive results for this seed and tank, not universal guarantees or a scientific study.",
+  "results": [
+    {
+      "disabled": "none",
+      "meanNearestSpacing": 1.526590476152664,
+      "meanLocalHeadingCosine": 0.9252711962810694,
+      "rmsSchoolRadius": 7.216653691762515
+    },
+    {
+      "disabled": "separation",
+      "meanNearestSpacing": 0.007323561830013661,
+      "meanLocalHeadingCosine": 0.9836489702936821,
+      "rmsSchoolRadius": 2.489622667288741
+    },
+    {
+      "disabled": "alignment",
+      "meanNearestSpacing": 1.3936466771875669,
+      "meanLocalHeadingCosine": 0.04804375843183961,
+      "rmsSchoolRadius": 7.16752304063616
+    },
+    {
+      "disabled": "cohesion",
+      "meanNearestSpacing": 1.529283625439662,
+      "meanLocalHeadingCosine": 0.7917981002271343,
+      "rmsSchoolRadius": 8.119561083854828
+    }
+  ]
+}

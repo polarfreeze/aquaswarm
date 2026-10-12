@@ -1,0 +1,6 @@
+
+Algorithm : SHA256
+Hash      : DAEBBEEAA131DA84FD6B8FADCD19F960C65D60E8C44358FF1F89CDC79FDFEBDE
+Path      : D:\30Documents\RU\AI for Visual Computing\aquaswarm\releases\AquaSwarm-Assignment2-v0.2.0.zip
+
+
