@@ -5,7 +5,7 @@ An interactive 3D fish-schooling simulation for the browser. One hundred fish fo
 The app opens on a start menu with two modes:
 
 - **Explore the lab:** switch Boids rules, run behaviour scenarios, drop food, release a hunting predator, and stress-test up to 2000 fish. **Finish** shows a session summary.
-- **Feeding challenge:** get the school to eat 10 meals in 90 seconds while the predator hunts. Fish that flee stop eating, so where you drop food matters. It ends in a win or time-out screen and keeps your best time.
+- **Feeding challenge:** get the school to eat 11 meals in 90 seconds while the predator hunts. Fish that flee stop eating, so where you drop food matters. It ends in a win or time-out screen and keeps your best time.
 
 CS 549 AI for Visual Computing · Group AquaSwarm · Dongquan Yang (dy303) · Version 0.4.0 (Assignment 4 alpha)
 
@@ -44,7 +44,7 @@ After `npm ci` the app needs no network: there are no external models, fonts, im
 | Predator | Release predator (P), explore mode only. It hunts the nearest fish for 6 s, then rests and patrols for 5 s. It is slower than a fleeing fish and never eats; fish that come close flee. |
 | Scenarios | Cruise, Feeding, Predator, Feed + predator. Each restarts from seed 549. |
 | Camera | Drag to orbit, scroll to zoom toward the pointer. Perspective and Top view buttons. Expand hides the side panel. |
-| Rules | Each Boids rule has its own on/off switch and a 0–3 weight slider. |
+| Rules | Each Boids rule has its own on/off switch and a 0–3 weight slider. **Body contact** (on by default) keeps fish bodies from overlapping, even with separation off. |
 | Display | Swim animation on/off and colour by state. |
 | Stress test | Population slider (10–2000), plus an automatic run at 100 → 2000 fish that reports FPS, simulation ms per step, and real-time rate. |
 | Transport | Pause/Resume (Space), Restart (R) and Finish (Esc). Restart repeats the current scenario or mode from the seed. Finish ends the session and shows the results screen. |
@@ -55,7 +55,7 @@ Fish colours show their state: orange = cruise, green = feed, red = flee.
 
 | File | Responsibility |
 | --- | --- |
-| `src/simulation.js` | Pure simulation, independent of Three.js: seeded RNG, Boids, uniform-grid neighbour search, behaviour state machine, food pellets, hunting predator, session counters, challenge rules, fixed-step clock. |
+| `src/simulation.js` | Pure simulation, independent of Three.js: seeded RNG, Boids, uniform-grid neighbour search, behaviour state machine, body contact between fish, food pellets, hunting predator, session counters, challenge rules, fixed-step clock. |
 | `src/animation.js` | `SwimAnimator`: smoothed yaw/pitch/bank, tail-beat phase and amplitude, turn bend. Pure JavaScript, so it is unit-tested. |
 | `src/fishGeometry.js` | Procedural low-poly fish and predator meshes, plus the vertex-shader swim deformation. |
 | `src/scene.js` | Three.js scene: instanced school and predator, shadows, food, camera. |
@@ -101,10 +101,11 @@ npm run build && npm run perf
 npm run build && npm run record
 ```
 
-- `npm test`: 36 Node tests covering:
+- `npm test`: 38 Node tests covering:
   - Boids invariants and 10-minute runs, one with cruising only and one with the full feed/flee loop.
   - The grid neighbour search matches a brute-force search.
   - Determinism and overload behaviour of the fixed clock.
+  - Body contact: no overlapping bodies with separation off (cruising and crowding on food), and two fish swimming head-on do not pass through each other.
   - Feeding, the pellet cap, fleeing, priority, hysteresis, recovery and the predator's hunt/rest cycle.
   - Session counters, and that the challenge is winnable with good food placement but not with random placement.
   - Swim-animation properties.

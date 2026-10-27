@@ -19,9 +19,9 @@ Screenshots: `evidence/a4-menu.png`, `evidence/a4-challenge.png`, `evidence/a4-w
 
 ### Automated results
 
-- `npm test`: 36/36 pass. New: session counters for flee/feed switches, and a challenge test where good food placement wins and random placement loses. The pellet-cap test now checks three pellets.
+- `npm test`: 38/38 pass. New: session counters for flee/feed switches; a challenge test where good food placement wins and random placement loses; body contact with separation off (cruising and a crowd on food); two fish swimming head-on do not pass through each other. The pellet-cap test now checks three pellets.
 - `npm run test:browser`: 5/5 pass in Chromium. Covered:
-  - Menu, pause, restart, and the Space-after-click regression.
+  - Menu, pause, restart, the Body contact switch, and the Space-after-click regression.
   - Explore: feeding, pellet cap, scenarios, hunting predator, recovery, session summary, Keep exploring, Esc, Main menu.
   - Challenge: HUD, a scripted player wins, best time saved, Play again, time-out loss.
   - Stress test, and pausing stops it (regression).
@@ -30,15 +30,29 @@ Screenshots: `evidence/a4-menu.png`, `evidence/a4-challenge.png`, `evidence/a4-w
 
 ### Challenge balance (`evidence/challenge-balance-a4.json`)
 
-Scripted players drop one pellet every 4 s over 5 seeds. Target: 10 meals in 90 s with the hunting predator.
+Scripted players drop one pellet every 4 s over 5 seeds. Target: 11 meals in 90 s with the hunting predator.
 
 | Strategy | Wins | Result |
 | --- | ---: | --- |
-| Near the school, away from the predator | 5/5 | 52.0–81.7 s |
-| Random spot | 0/5 | 6.3–9.1 meals |
+| Near the school, away from the predator | 5/5 | 54.5–89.4 s |
+| Random spot | 0/5 | 6.7–10.6 meals |
 | No food | 0/5 | 0 meals |
 
-These are bots, not people; playtesting is planned for Week 9.
+These are bots, not people; playtesting is planned for Week 9. The target was 10 meals until body contact was added: feeding got slightly faster in the bot runs, and random placement then won 2 of 5 seeds (83–88 s). At 11 meals it wins none.
+
+A wider check with human-like timing (each drop 4–5 s after the last, 20 seeds): the near-school player wins 16 of 20 at both 10 and 11 meals, and random placement goes from 4 of 20 wins at 10 meals to 0 of 20 at 11. The 4 lost seeds are runs where the predator keeps scattering the school, so the higher target costs good players nothing. The browser test's scripted player therefore gets up to three attempts.
+
+### Body contact
+
+Each fish is a capsule along its heading (from 0.7 u behind to 0.5 u ahead of its origin, radius 0.22 u). Overlap is measured independently in the tests by sampling both body segments. Seed 549, 100 fish, separation off, 60 s, checked once per second (food dropped at mid-depth every 10 s in the food case):
+
+| Case | Overlapping pairs (> 0.05 u), contact off → on | Deepest overlap, off → on |
+| --- | ---: | ---: |
+| Cruising | 101,499 → 1 | 0.44 → 0.06 u |
+| Crowd on food | 215,687 → 18 | 0.44 → 0.10 u |
+| Crowd on food, separation on | 14,850 → 2 | 0.43 → 0.05 u |
+
+Even with separation on, crossing fish used to overlap briefly; contact removes that too.
 
 ### Scenario comparison (`evidence/scenario-comparison-a4.json`, seed 549, 60 s, predator removed at 40 s)
 
@@ -46,9 +60,9 @@ Three pellets at (-10, 4), (4, -6), (13, 7); hunting predator (6 s hunt at 4.3 u
 
 | Scenario | Mean cruise / feed / flee | Peak feed | Peak flee | All food gone | Feed→flee switches | Shortest flee |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Food only | 78.8 / 21.2 / 0 | 100 | 0 | 13.35 s | 0 | — |
-| Predator only | 97.64 / 0 / 2.36 | 0 | 16 | — | 0 | 1.02 s |
-| Food + predator | 69.97 / 22.18 / 7.85 | 91 | 42 | 20.47 s | 87 | 1.02 s |
+| Food only | 78.73 / 21.27 / 0 | 100 | 0 | 13.4 s | 0 | — |
+| Predator only | 95.92 / 0 / 4.08 | 0 | 52 | — | 0 | 1.02 s |
+| Food + predator | 71.71 / 23.01 / 5.28 | 92 | 47 | 21.17 s | 60 | 1.02 s |
 
 Fish recover from flee 0.02 s after the predator is removed, and no flee episode is shorter than the 1 s hold.
 
@@ -56,11 +70,22 @@ Fish recover from flee 0.02 s after the predator is removed, and no flee episode
 
 Production build, Chromium 145 headless with the Intel Arc GPU, 1920 × 1080.
 
-- **5 minutes, 100 fish, hunting predator, food every 20 s:** 17,996 frames, 60.0 FPS mean, p95 16.8 ms, worst 33.4 ms, simulation at real time (1.000×).
+- **5 minutes, 100 fish, hunting predator, food every 20 s:** 17,930 frames, 59.8 FPS mean, p95 16.8 ms, simulation at 0.997× real time. The worst single frame was 283 ms; I was building the report PDF on the same laptop during the run, which is the likely cause.
 - **Stress test:**
 
 | Fish | FPS | Sim ms / step | Real-time |
 | ---: | ---: | ---: | ---: |
+| 100 | 60.0 | 0.37 | 100% |
+| 250 | 60.0 | 1.63 | 100% |
+| 500 | 60.0 | 4.08 | 100% |
+| 1000 | 56.8 | 13.34 | 95% |
+| 1500 | 32.5 | 25.36 | 54% |
+| 2000 | 21.0 | 37.96 | 35% |
+
+- **2000 fish crowding one pellet:** 23.4 FPS at 0.39× real time.
+- **Cost of body contact.** Measured separately in Node, back to back on the same laptop: +16% per step at 500 fish, +14% at 1000, +13% at 2000. The rest of the difference from the A3 run below is this laptop's run-to-run variation (see the A3 note), so the large-population numbers are a range. The 100-fish target is unaffected.
+
+---: | ---: | ---: | ---: |
 | 100 | 60.0 | 0.29 | 100% |
 | 250 | 60.0 | 0.85 | 100% |
 | 500 | 60.0 | 2.35 | 100% |

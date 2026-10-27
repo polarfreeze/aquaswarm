@@ -93,6 +93,9 @@ document.querySelector('#app').innerHTML = `
             <input type="range" id="${rule}-weight" min="0" max="3" step="0.05" aria-describedby="${rule}-description">
             <p class="rule-detail" id="${rule}-description">${RULE_TEXT[rule][1]}</p>
           </section>`).join('')}
+          <div class="card options">
+            <div class="option"><div><strong>Body contact</strong><span>Fish bodies push each other apart instead of overlapping, even with separation off.</span></div>${toggle('collisions', 'Body contact', true)}</div>
+          </div>
         </section>
         <section class="panel" id="panel-view" role="tabpanel" aria-labelledby="tab-view" hidden>
           <h2>Animation &amp; display</h2>
@@ -184,6 +187,7 @@ function syncControls() {
     $(`#${rule}-enabled`).checked = simulation.enabled[rule];
     $(`[data-rule="${rule}"]`).classList.toggle('disabled-rule', !simulation.enabled[rule]);
   }
+  $('#collisions').checked = simulation.collisions;
   $('#pause').textContent = simulation.paused ? 'Resume' : 'Pause';
   $('#status').classList.toggle('paused', simulation.paused);
   const predator = Boolean(simulation.predator), challenge = game.mode === 'challenge';
@@ -371,6 +375,7 @@ for (const rule of RULES) {
   $(`#${rule}-weight`).addEventListener('input', event => { simulation.setWeight(rule, Number(event.target.value)); syncControls(); });
   $(`#${rule}-enabled`).addEventListener('change', event => { simulation.setEnabled(rule, event.target.checked); syncControls(); });
 }
+$('#collisions').addEventListener('change', event => { simulation.setCollisions(event.target.checked); syncControls(); });
 $('#pause').addEventListener('click', pause);
 // Restart repeats what is running: the selected scenario, or a fresh session of the current mode.
 function restartSession() { if (game.scenario) runScenario(game.scenario); else startMode(game.mode); }
@@ -534,12 +539,12 @@ animationId = requestAnimationFrame(frame);
 // Read-only snapshots are available only with ?test, for end-to-end checks on the actual app.
 if (new URLSearchParams(location.search).has('test')) {
   window.aquaswarmSnapshot = () => structuredClone({ fish: simulation.fish, time: simulation.time,
-    paused: simulation.paused, weights: simulation.weights, enabled: simulation.enabled,
+    paused: simulation.paused, weights: simulation.weights, enabled: simulation.enabled, collisions: simulation.collisions,
     food: simulation.food, predator: simulation.predator, summary: simulation.summary(),
     game: { phase: game.phase, mode: game.mode, result: game.result, meals: meals(), session: game.session, best: game.best },
     stats: simulation.stats, stress: { running: Boolean(ui.stress), results: ui.stressResults },
     swim: { phase: Array.from(animator.phase.slice(0, 8)), amplitude: Array.from(animator.amplitude.slice(0, 8)) },
-    rendering: scene.getInfo(), config: CONFIG });
+    rendering: scene.getInfo(), config: CONFIG, challenge: CHALLENGE });
   // Projects a world point (or a fish) to page coordinates so scripted tests can click it.
   window.aquaswarmProjectPoint = (x, y, z) => {
     const point = scene.project(x, y, z);

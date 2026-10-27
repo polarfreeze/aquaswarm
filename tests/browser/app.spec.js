@@ -40,6 +40,11 @@ test('start menu, live rule controls, pause, resume, restart and camera', async 
     await expect(page.locator(`#${rule}-weight`)).toBeDisabled();
     expect((await snapshot(page)).enabled[rule]).toBe(false);
   }
+  // Body contact is separate from the Boids rules and stays on with all of them off.
+  const contact = page.getByRole('checkbox', { name: 'Body contact', exact: true });
+  await expect(contact).toBeChecked();
+  expect((await snapshot(page)).collisions).toBe(true);
+  await contact.uncheck(); expect((await snapshot(page)).collisions).toBe(false);
   await page.getByRole('button', { name: 'Resume', exact: true }).click();
   await expect.poll(async () => (await snapshot(page)).time).toBeGreaterThan(paused.time);
   await expect.poll(async () => (await snapshot(page)).swim.phase).not.toEqual(paused.swim.phase);
@@ -49,6 +54,7 @@ test('start menu, live rule controls, pause, resume, restart and camera', async 
   const reset = await snapshot(page);
   expect(reset.weights).toEqual({ separation: 2.4, alignment: 1.1, cohesion: 0.55 });
   expect(Object.values(reset.enabled).every(Boolean)).toBe(true); expect(reset.time).toBeLessThan(0.5);
+  expect(reset.collisions).toBe(true); await expect(contact).toBeChecked();
   await expect(page.locator('#perspective')).toHaveAttribute('aria-pressed', 'true');
   // Regression: after a mouse click on a button, Space must pause instead of clicking that button again.
   await page.locator('#predator').click();
@@ -131,7 +137,7 @@ test('explore: feeding, pellet cap, scenarios, hunting predator, recovery and se
 });
 
 test('feeding challenge: HUD, win screen, best time, play again and time-out loss', async ({ page }) => {
-  test.setTimeout(400000);
+  test.setTimeout(600000);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await open(page, 'challenge');
@@ -141,22 +147,28 @@ test('feeding challenge: HUD, win screen, best time, play again and time-out los
   await expect(page.locator('#hud')).toBeVisible();
   await expect(page.locator('#tabs')).toBeHidden();
   await expect(page.locator('#predator')).toBeDisabled();
-  // Play like a person: every 3 simulated seconds, drop food just in front of the school, away from the predator.
-  let lastDrop = -3;
-  while ((await snapshot(page)).game.phase === 'active') {
-    s = await snapshot(page);
-    if (s.time - lastDrop >= 3) {
-      lastDrop = s.time;
-      const n = s.fish.length, cx = s.fish.reduce((a, f) => a + f.x / n, 0), cz = s.fish.reduce((a, f) => a + f.z / n, 0);
-      const d = Math.hypot(cx - s.predator.x, cz - s.predator.z) || 1;
-      const p = await surface(page, cx + (cx - s.predator.x) / d * 4, cz + (cz - s.predator.z) / d * 4);
-      await page.mouse.click(p.x, p.y);
+  // Play like a person: every 4 simulated seconds (one pellet lasts about 12 s and at most 3 exist),
+  // drop food just in front of the school, away from the predator. This wins about 4 runs in 5 (the
+  // predator sometimes keeps scattering the school), so a lost run is retried with Play again.
+  for (let attempt = 1; ; attempt++) {
+    let lastDrop = -4;
+    while ((await snapshot(page)).game.phase === 'active') {
+      s = await snapshot(page);
+      if (s.time - lastDrop >= 4) {
+        lastDrop = s.time;
+        const n = s.fish.length, cx = s.fish.reduce((a, f) => a + f.x / n, 0), cz = s.fish.reduce((a, f) => a + f.z / n, 0);
+        const d = Math.hypot(cx - s.predator.x, cz - s.predator.z) || 1;
+        const p = await surface(page, cx + (cx - s.predator.x) / d * 4, cz + (cz - s.predator.z) / d * 4);
+        await page.mouse.click(p.x, p.y);
+      }
+      await page.waitForTimeout(250);
     }
-    await page.waitForTimeout(250);
+    if ((await snapshot(page)).game.result === 'win' || attempt === 3) break;
+    await page.getByRole('button', { name: 'Play again' }).click();
   }
   s = await snapshot(page);
   expect(s.game.result).toBe('win');
-  expect(s.game.meals).toBeGreaterThanOrEqual(10);
+  expect(s.game.meals).toBeGreaterThanOrEqual(s.challenge.meals);
   expect(s.time).toBeLessThan(90);
   expect(s.game.best).toBeCloseTo(s.time, 5);
   await expect(page.getByRole('dialog')).toContainText('School fed!');

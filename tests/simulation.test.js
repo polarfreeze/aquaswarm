@@ -169,3 +169,46 @@ test('2000 fish with food and a predator stay finite and bounded', () => {
   sim.addFood(0, 0, 9); sim.setPredator(true);
   run(sim, 2); assertHealthy(sim, CONFIG.fleeSpeed);
 });
+// Deepest overlap between any two fish bodies, from a sampled capsule distance (independent of the
+// closest-point solver in the simulation).
+function worstOverlap(fish) {
+  const axis = f => { const s = Math.hypot(f.vx, f.vy, f.vz) || 1; return [f.vx / s, f.vy / s, f.vz / s]; };
+  const along = k => CONFIG.bodyBack + (CONFIG.bodyFront - CONFIG.bodyBack) * k / 16;
+  let worst = 0;
+  for (let i = 0; i < fish.length; i++) for (let j = i + 1; j < fish.length; j++) {
+    const a = fish[i], b = fish[j];
+    if (Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) > 2) continue;
+    const u = axis(a), v = axis(b);
+    let gap = Infinity;
+    for (let s = 0; s <= 16; s++) for (let t = 0; t <= 16; t++)
+      gap = Math.min(gap, Math.hypot(a.x + u[0] * along(s) - b.x - v[0] * along(t),
+        a.y + u[1] * along(s) - b.y - v[1] * along(t), a.z + u[2] * along(s) - b.z - v[2] * along(t)));
+    worst = Math.max(worst, 2 * CONFIG.bodyRadius - gap);
+  }
+  return worst;
+}
+test('body contact keeps fish from overlapping with separation off, including a crowd on food', () => {
+  for (const food of [false, true]) {
+    const on = new Simulation(), off = new Simulation();
+    for (const sim of [on, off]) { sim.setEnabled('separation', false); if (food) sim.addFood(0, 0, 9); }
+    off.setCollisions(false);
+    let worstOn = 0, worstOff = 0;
+    for (let second = 0; second < 30; second++) {
+      run(on, 1); run(off, 1);
+      worstOn = Math.max(worstOn, worstOverlap(on.fish)); worstOff = Math.max(worstOff, worstOverlap(off.fish));
+    }
+    assert.ok(worstOff > 0.3, `without contact bodies overlap (${worstOff})`);
+    assert.ok(worstOn < 0.15, `with contact the deepest overlap is ${worstOn} (body radius ${CONFIG.bodyRadius})`);
+    assertHealthy(on, CONFIG.feedSpeed);
+  }
+});
+test('two fish swimming head-on do not pass through each other', () => {
+  const sim = new Simulation(549, 2);
+  sim.fish = [fishAt(0, -2, 9, 0, 3, 0, 0), fishAt(1, 2, 9, 0, -3, 0, 0)];
+  RULES.forEach(rule => sim.setEnabled(rule, false));
+  for (let i = 0; i < 90; i++) {
+    sim.step();
+    assert.ok(worstOverlap(sim.fish) < 0.1, `overlap at step ${i}`);
+  }
+  assert.ok(Math.hypot(sim.fish[0].x - sim.fish[1].x, sim.fish[0].z - sim.fish[1].z) >= 2 * CONFIG.bodyRadius - 0.1);
+});

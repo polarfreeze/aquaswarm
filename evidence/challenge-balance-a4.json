@@ -1,6 +1,6 @@
 {
   "challenge": {
-    "meals": 10,
+    "meals": 11,
     "seconds": 90
   },
   "dropEverySeconds": 4,
@@ -57,31 +57,31 @@
           "seed": 549,
           "won": false,
           "seconds": 90,
-          "meals": 7.9
+          "meals": 10.4
         },
         {
           "seed": 7,
           "won": false,
           "seconds": 90,
-          "meals": 7.2
+          "meals": 9.2
         },
         {
           "seed": 1234,
           "won": false,
           "seconds": 90,
-          "meals": 9.1
+          "meals": 10.6
         },
         {
           "seed": 2026,
           "won": false,
           "seconds": 90,
-          "meals": 6.5
+          "meals": 6.7
         },
         {
           "seed": 42,
           "won": false,
           "seconds": 90,
-          "meals": 6.3
+          "meals": 8.2
         }
       ]
     },
@@ -92,32 +92,32 @@
         {
           "seed": 549,
           "won": true,
-          "seconds": 54.7,
-          "meals": 10
+          "seconds": 89.4,
+          "meals": 11
         },
         {
           "seed": 7,
           "won": true,
-          "seconds": 55.5,
-          "meals": 10
+          "seconds": 56.3,
+          "meals": 11
         },
         {
           "seed": 1234,
           "won": true,
-          "seconds": 81.7,
-          "meals": 10
+          "seconds": 58.2,
+          "meals": 11
         },
         {
           "seed": 2026,
           "won": true,
-          "seconds": 52,
-          "meals": 10
+          "seconds": 54.5,
+          "meals": 11
         },
         {
           "seed": 42,
           "won": true,
-          "seconds": 56.6,
-          "meals": 10
+          "seconds": 61,
+          "meals": 11
         }
       ]
     }

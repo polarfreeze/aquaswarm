@@ -37,35 +37,35 @@
     {
       "scenario": "food only",
       "meanFishPerState": {
-        "cruise": 78.8,
-        "feed": 21.2,
+        "cruise": 78.73,
+        "feed": 21.27,
         "flee": 0
       },
       "peakFeeding": 100,
       "peakFleeing": 0,
       "firstFeedingSeconds": 0.02,
       "firstFleeingSeconds": null,
-      "allFoodGoneSeconds": 13.35,
+      "allFoodGoneSeconds": 13.4,
       "feedToFleeSwitches": 0,
       "fleeEpisodes": 0,
       "shortestFleeSeconds": null,
       "recoverySecondsAfterPredatorRemoved": null,
-      "maxSpeed": 4.24
+      "maxSpeed": 4.23
     },
     {
       "scenario": "predator only",
       "meanFishPerState": {
-        "cruise": 97.64,
+        "cruise": 95.92,
         "feed": 0,
-        "flee": 2.36
+        "flee": 4.08
       },
       "peakFeeding": 0,
-      "peakFleeing": 16,
+      "peakFleeing": 52,
       "firstFeedingSeconds": null,
       "firstFleeingSeconds": 0.02,
       "allFoodGoneSeconds": null,
       "feedToFleeSwitches": 0,
-      "fleeEpisodes": 44,
+      "fleeEpisodes": 82,
       "shortestFleeSeconds": 1.02,
       "recoverySecondsAfterPredatorRemoved": 0.02,
       "maxSpeed": 6.17
@@ -73,20 +73,20 @@
     {
       "scenario": "food + predator",
       "meanFishPerState": {
-        "cruise": 69.97,
-        "feed": 22.18,
-        "flee": 7.85
+        "cruise": 71.71,
+        "feed": 23.01,
+        "flee": 5.28
       },
-      "peakFeeding": 91,
-      "peakFleeing": 42,
+      "peakFeeding": 92,
+      "peakFleeing": 47,
       "firstFeedingSeconds": 0.02,
       "firstFleeingSeconds": 0.02,
-      "allFoodGoneSeconds": 20.47,
-      "feedToFleeSwitches": 87,
-      "fleeEpisodes": 173,
+      "allFoodGoneSeconds": 21.17,
+      "feedToFleeSwitches": 60,
+      "fleeEpisodes": 119,
       "shortestFleeSeconds": 1.02,
       "recoverySecondsAfterPredatorRemoved": 0.02,
-      "maxSpeed": 5.86
+      "maxSpeed": 5.67
     }
   ]
 }

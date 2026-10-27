@@ -10,6 +10,10 @@ export const CONFIG = Object.freeze({
   deceleration: 4,
   // Hard containment margin: a fish (scaled model) reaches at most this far from its origin.
   fishMargin: 1.2,
+  // Body contact: each fish is a capsule along its heading, from `bodyBack` to `bodyFront` (world units,
+  // relative to its origin) with radius `bodyRadius`, matching the rendered body without the soft tail fin.
+  // Overlapping bodies are pushed apart whether or not the separation rule is on.
+  bodyFront: 0.5, bodyBack: -0.7, bodyRadius: 0.22,
   // Feeding: up to `maxFood` pellets. A pellet sinks from the surface and lasts `foodAmount` seconds
   // while at least `fullRateEaters` fish are eating it (fewer fish eat it proportionally slower).
   maxFood: 3, foodAmount: 12, fullRateEaters: 3, foodSinkSpeed: 0.45, foodLifetime: 45, foodFloor: 0.6,
@@ -22,9 +26,9 @@ export const CONFIG = Object.freeze({
   predatorHunt: 6, predatorRest: 5, predatorMargin: 2.4,
 });
 // Feeding challenge: the school must eat this many meals (one meal = one full pellet) before time
-// runs out. Tuned with seeded bot runs: food dropped at random gives 7–9 meals in 90 s; food dropped
-// near the school and away from the predator wins in about 55–80 s.
-export const CHALLENGE = Object.freeze({ meals: 10, seconds: 90 });
+// runs out. Tuned with seeded bot runs (npm run balance): food dropped at random never reaches it in
+// 90 s; food dropped near the school and away from the predator wins in about 55–90 s.
+export const CHALLENGE = Object.freeze({ meals: 11, seconds: 90 });
 export const DEFAULT_WEIGHTS = Object.freeze({ separation: 2.4, alignment: 1.1, cohesion: 0.55 });
 export const RULES = Object.freeze(Object.keys(DEFAULT_WEIGHTS));
 export const STATE = Object.freeze({ cruise: 0, feed: 1, flee: 2 });
@@ -93,6 +97,73 @@ function clampSpeed(vx, vy, vz, previousSpeed, maxSpeed, minSpeed, dt, fallbackA
   return out;
 }
 
+// Body contact after integration: a few Jacobi relaxation passes over the candidate pairs. Each
+// overlapping pair is pushed apart along the line between the closest points of the two body
+// segments (Ericson, Real-Time Collision Detection 5.1.9), half to each fish, and loses its
+// closing speed along that line. Jacobi sums make the result independent of pair order.
+const CONTACT_PASSES = 6;
+function resolveContacts(fish, pairs, pairCount) {
+  const n = fish.length, lo = CONFIG.bodyBack, hi = CONFIG.bodyFront, contact = CONFIG.bodyRadius * 2;
+  const heading = new Float64Array(n * 3), push = new Float64Array(n * 3), dv = new Float64Array(n * 3);
+  for (let pass = 0; pass < CONTACT_PASSES; pass++) {
+    // Bodies lie along the current velocity, which the first pass changes.
+    for (let i = 0; i < n; i++) {
+      const f = fish[i], speed = len(f.vx, f.vy, f.vz);
+      if (speed > 1e-9) { heading[3 * i] = f.vx / speed; heading[3 * i + 1] = f.vy / speed; heading[3 * i + 2] = f.vz / speed; }
+      else { heading[3 * i] = 1; heading[3 * i + 1] = 0; heading[3 * i + 2] = 0; }
+    }
+    push.fill(0); dv.fill(0);
+    let touching = false;
+    for (let k = 0; k < pairCount; k++) {
+      const i = pairs[2 * k], j = pairs[2 * k + 1], a = fish[i], b = fish[j];
+      const wx = a.x - b.x, wy = a.y - b.y, wz = a.z - b.z;
+      const ux = heading[3 * i], uy = heading[3 * i + 1], uz = heading[3 * i + 2];
+      const vx = heading[3 * j], vy = heading[3 * j + 1], vz = heading[3 * j + 2];
+      const c = ux * vx + uy * vy + uz * vz, d = ux * wx + uy * wy + uz * wz, e = vx * wx + vy * wy + vz * wz;
+      const denom = 1 - c * c;
+      let s = denom > 1e-9 ? Math.min(hi, Math.max(lo, (c * e - d) / denom)) : 0;
+      let t = e + c * s;
+      if (t < lo || t > hi) { t = Math.min(hi, Math.max(lo, t)); s = Math.min(hi, Math.max(lo, c * t - d)); }
+      let nx = wx + ux * s - vx * t, ny = wy + uy * s - vy * t, nz = wz + uz * s - vz * t;
+      const gap = len(nx, ny, nz);
+      if (gap >= contact) continue;
+      touching = true;
+      if (gap > 1e-9) { nx /= gap; ny /= gap; nz /= gap; } else {
+        // Coincident bodies: a fixed direction per pair, like coincident separation.
+        const angle = (a.id * 17 + b.id * 31) * 2.39996;
+        nx = Math.cos(angle); ny = 0; nz = Math.sin(angle);
+      }
+      const depth = (contact - gap) / 2;
+      push[3 * i] += nx * depth; push[3 * i + 1] += ny * depth; push[3 * i + 2] += nz * depth;
+      push[3 * j] -= nx * depth; push[3 * j + 1] -= ny * depth; push[3 * j + 2] -= nz * depth;
+      const closing = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny + (a.vz - b.vz) * nz;
+      if (closing < 0) {
+        const half = -closing / 2;
+        dv[3 * i] += nx * half; dv[3 * i + 1] += ny * half; dv[3 * i + 2] += nz * half;
+        dv[3 * j] -= nx * half; dv[3 * j + 1] -= ny * half; dv[3 * j + 2] -= nz * half;
+      }
+    }
+    if (!touching) break;
+    for (let i = 0; i < n; i++) {
+      const f = fish[i];
+      // A fish pressed from many sides (a crowd on one pellet) moves at most one body radius per pass.
+      const [px, py, pz] = limit(push[3 * i], push[3 * i + 1], push[3 * i + 2], CONFIG.bodyRadius);
+      f.x = Math.max(-CONFIG.halfWidth + CONFIG.fishMargin, Math.min(CONFIG.halfWidth - CONFIG.fishMargin, f.x + px));
+      f.y = Math.max(CONFIG.fishMargin, Math.min(CONFIG.height - CONFIG.fishMargin, f.y + py));
+      f.z = Math.max(-CONFIG.halfDepth + CONFIG.fishMargin, Math.min(CONFIG.halfDepth - CONFIG.fishMargin, f.z + pz));
+      if (pass === 0 && (dv[3 * i] || dv[3 * i + 1] || dv[3 * i + 2])) {
+        // Losing closing speed turns the fish; it never speeds it up or drops it below the minimum.
+        const before = len(f.vx, f.vy, f.vz);
+        const vx = f.vx + dv[3 * i], vy = f.vy + dv[3 * i + 1], vz = f.vz + dv[3 * i + 2], after = len(vx, vy, vz);
+        if (after > 1e-9) {
+          const scale = Math.min(before, Math.max(CONFIG.minSpeed, after)) / after;
+          f.vx = vx * scale; f.vy = vy * scale; f.vz = vz * scale;
+        }
+      }
+    }
+  }
+}
+
 // Initial fish i always uses the same five draws of one seeded stream, so fish 0–99 start
 // identically whether the population is 100 or 2000.
 function spawnFish(seed, from, to) {
@@ -152,6 +223,7 @@ export class Simulation {
   reset() {
     this.weights = { ...DEFAULT_WEIGHTS };
     this.enabled = Object.fromEntries(RULES.map(rule => [rule, true]));
+    this.collisions = true;
     this.paused = false;
     this.time = 0;
     this.count = this.initialCount;
@@ -173,6 +245,8 @@ export class Simulation {
   setEnabled(rule, enabled) {
     if (RULES.includes(rule)) this.enabled[rule] = Boolean(enabled);
   }
+
+  setCollisions(enabled) { this.collisions = Boolean(enabled); }
 
   // Grows by appending seeded fish (existing fish keep their state) or shrinks from the end.
   setCount(count) {
@@ -211,6 +285,11 @@ export class Simulation {
     dt = Math.min(dt, CONFIG.step);
     const fish = this.fish, food = this.food, predator = this.predator;
     const perception2 = CONFIG.perception ** 2, separation2 = CONFIG.separationRadius ** 2;
+    // Pairs that may touch after this step: origins closer than both body reaches, the contact
+    // distance and the most two fish can close in one step. Each pair is stored once (i < j).
+    const collisions = this.collisions;
+    const touch2 = (2 * Math.max(CONFIG.bodyFront, -CONFIG.bodyBack) + 2 * CONFIG.bodyRadius + 2 * CONFIG.fleeSpeed * dt) ** 2;
+    let pairs = this.pairs ??= new Int32Array(1024), pairCount = 0;
     const eaters = new Int32Array(food.length);
     const grid = this.grid;
     grid.build(fish);
@@ -233,6 +312,10 @@ export class Simulation {
               const dx = f.x - other.x, dy = f.y - other.y, dz = f.z - other.z;
               const d2 = dx * dx + dy * dy + dz * dz;
               if (d2 >= perception2) continue;
+              if (collisions && i < j && d2 < touch2) {
+                if (pairCount * 2 >= pairs.length) { const grown = new Int32Array(pairs.length * 2); grown.set(pairs); pairs = this.pairs = grown; }
+                pairs[pairCount * 2] = i; pairs[pairCount * 2 + 1] = j; pairCount++;
+              }
               neighbors++;
               ax += other.vx; ay += other.vy; az += other.vz;
               cx += other.x; cy += other.y; cz += other.z;
@@ -309,6 +392,8 @@ export class Simulation {
       if (Math.abs(z) > CONFIG.halfDepth - CONFIG.fishMargin) { z = Math.sign(z) * (CONFIG.halfDepth - CONFIG.fishMargin); vz = -Math.sign(z) * Math.abs(vz); }
       next[i] = { id: f.id, x, y, z, vx, vy, vz, state, stateTime, target };
     }
+
+    if (pairCount) resolveContacts(next, pairs, pairCount);
 
     // The predator also reads the old frame, so update order does not matter.
     const nextPredator = predator ? this.#stepPredator(predator, fish, dt) : null;
