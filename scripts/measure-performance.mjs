@@ -1,6 +1,6 @@
 // Measures the production build in Chromium on this machine's GPU (D3D11 via ANGLE when available):
 // 5-minute steady state at 100 fish, the in-app stress test, and a 2000-fish crowding worst case.
-// Writes evidence/performance-a3.json. Headless frames are not vsync-capped, so FPS can exceed 60.
+// Writes evidence/performance-a4.json. Headless frames are not vsync-capped, so FPS can exceed 60.
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -18,6 +18,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(URL);
+  await page.waitForFunction(() => window.aquaswarmSnapshot?.().game.phase === 'menu');
+  await page.getByRole('button', { name: /Explore the lab/ }).click();
   await page.waitForFunction(() => window.aquaswarmSnapshot?.().time > 1);
   const renderer = await page.evaluate(() => {
     const gl = document.createElement('canvas').getContext('webgl2');
@@ -40,11 +42,10 @@ try {
       simulatedPerRealSecond: (s.time - t0) / (total / 1000), fish: s.fish.length, states: s.summary.states };
   }, seconds * 1000);
 
-  // Steady state: food + predator is the busiest MVP case at 100 fish. The pellet lasts about
-  // 15 s, so a new one is dropped every 20 s during the measurement.
+  // Steady state: the Feed + predator scenario (three pellets, hunting predator) is the busiest
+  // 100-fish case. Pellets last about 15 s, so a new one is dropped every 20 s during the measurement.
   const dropFood = async () => { const p = await page.evaluate(() => window.aquaswarmProjectPoint(5, 18, 3)); await page.mouse.click(p.x, p.y); };
-  await page.locator('#predator').click();
-  await dropFood();
+  await page.getByRole('button', { name: /Feed \+ predator/ }).click();
   const feeder = setInterval(() => dropFood().catch(() => {}), 20000);
   const steady = await measure(300);
   clearInterval(feeder);
@@ -68,7 +69,7 @@ try {
   console.log('crowding', crowding);
 
   await mkdir('evidence', { recursive: true });
-  await writeFile('evidence/performance-a3.json', JSON.stringify({ date: new Date().toISOString(),
+  await writeFile('evidence/performance-a4.json', JSON.stringify({ date: new Date().toISOString(),
     browser: `Chromium ${browser.version()} (headless, GPU via ANGLE)`, renderer, os: `${os.platform()} ${os.release()}`,
     cpu: os.cpus()[0].model, viewport: '1920 × 1080', build: 'vite production build (npm run build)',
     note: 'Headless rAF is not vsync-capped; a visible browser tab is limited to the display refresh rate. Simulation is fixed-step 60 Hz with at most 4 steps and a 12 ms step budget per frame; when overloaded, simulated time slows (see simulatedPerRealSecond).',

@@ -1,0 +1,125 @@
+{
+  "challenge": {
+    "meals": 10,
+    "seconds": 90
+  },
+  "dropEverySeconds": 4,
+  "seeds": [
+    549,
+    7,
+    1234,
+    2026,
+    42
+  ],
+  "caveat": "Scripted players, not people. A person can aim more precisely, so this bounds difficulty rather than measuring it.",
+  "results": [
+    {
+      "strategy": "no food",
+      "wins": 0,
+      "runs": [
+        {
+          "seed": 549,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 7,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1234,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 2026,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 42,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        }
+      ]
+    },
+    {
+      "strategy": "random spot",
+      "wins": 0,
+      "runs": [
+        {
+          "seed": 549,
+          "won": false,
+          "seconds": 90,
+          "meals": 7.9
+        },
+        {
+          "seed": 7,
+          "won": false,
+          "seconds": 90,
+          "meals": 7.2
+        },
+        {
+          "seed": 1234,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.1
+        },
+        {
+          "seed": 2026,
+          "won": false,
+          "seconds": 90,
+          "meals": 6.5
+        },
+        {
+          "seed": 42,
+          "won": false,
+          "seconds": 90,
+          "meals": 6.3
+        }
+      ]
+    },
+    {
+      "strategy": "near school, away from predator",
+      "wins": 5,
+      "runs": [
+        {
+          "seed": 549,
+          "won": true,
+          "seconds": 54.7,
+          "meals": 10
+        },
+        {
+          "seed": 7,
+          "won": true,
+          "seconds": 55.5,
+          "meals": 10
+        },
+        {
+          "seed": 1234,
+          "won": true,
+          "seconds": 81.7,
+          "meals": 10
+        },
+        {
+          "seed": 2026,
+          "won": true,
+          "seconds": 52,
+          "meals": 10
+        },
+        {
+          "seed": 42,
+          "won": true,
+          "seconds": 56.6,
+          "meals": 10
+        }
+      ]
+    }
+  ]
+}

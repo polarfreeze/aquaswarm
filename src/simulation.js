@@ -1,5 +1,5 @@
 // Pure simulation: full 3D volume, world units and seconds, no renderer dependency.
-// Boids + a three-state behaviour machine (cruise / feed / flee), one food point and one stationary predator.
+// Boids + a three-state behaviour machine (cruise / feed / flee), food pellets and one hunting predator.
 export const CONFIG = Object.freeze({
   count: 100, minCount: 10, maxCount: 2000, seed: 549,
   halfWidth: 24, halfDepth: 17, height: 18,
@@ -10,19 +10,26 @@ export const CONFIG = Object.freeze({
   deceleration: 4,
   // Hard containment margin: a fish (scaled model) reaches at most this far from its origin.
   fishMargin: 1.2,
-  // Feeding: one food point at a time. A pellet sinks from the surface and lasts `foodAmount` seconds
+  // Feeding: up to `maxFood` pellets. A pellet sinks from the surface and lasts `foodAmount` seconds
   // while at least `fullRateEaters` fish are eating it (fewer fish eat it proportionally slower).
-  maxFood: 1, foodAmount: 12, fullRateEaters: 3, foodSinkSpeed: 0.45, foodLifetime: 45, foodFloor: 0.6,
+  maxFood: 3, foodAmount: 12, fullRateEaters: 3, foodSinkSpeed: 0.45, foodLifetime: 45, foodFloor: 0.6,
   feedEnter: 13, feedExit: 17, eatRadius: 1.1, feedSpeed: 4.4, feedWeight: 2.6, feedAcceleration: 9,
   // Escape. Separate enter/exit radii plus a minimum hold time stop state flicker at the edge.
   fleeEnter: 8, fleeExit: 12, fleeHold: 1, fleeSpeed: 6.4, fleeWeight: 3.2, fleeAcceleration: 18,
-  // Predator: stationary at the centre of the tank at mid-depth; it never eats fish.
-  predatorX: 0, predatorY: 9, predatorZ: 0,
+  // Predator: hunts the nearest fish for a while, then rests and patrols, so it never chases forever.
+  // It is slower than a fleeing fish and never eats; its job is to scatter the school.
+  predatorSense: 18, predatorHuntSpeed: 4.3, predatorPatrolSpeed: 2.2, predatorAcceleration: 4.5,
+  predatorHunt: 6, predatorRest: 5, predatorMargin: 2.4,
 });
+// Feeding challenge: the school must eat this many meals (one meal = one full pellet) before time
+// runs out. Tuned with seeded bot runs: food dropped at random gives 7–9 meals in 90 s; food dropped
+// near the school and away from the predator wins in about 55–80 s.
+export const CHALLENGE = Object.freeze({ meals: 10, seconds: 90 });
 export const DEFAULT_WEIGHTS = Object.freeze({ separation: 2.4, alignment: 1.1, cohesion: 0.55 });
 export const RULES = Object.freeze(Object.keys(DEFAULT_WEIGHTS));
 export const STATE = Object.freeze({ cruise: 0, feed: 1, flee: 2 });
 export const STATE_NAMES = Object.freeze(['cruise', 'feed', 'flee']);
+export const PREDATOR_MODE = Object.freeze({ hunt: 0, rest: 1 });
 // Boids weights are rescaled per state: feeding fish follow the food more than the school,
 // fleeing fish keep alignment (a coordinated escape) but loosen cohesion.
 const STATE_RULE_SCALE = [
@@ -153,6 +160,9 @@ export class Simulation {
     this.nextFoodId = 0;
     this.foodEaten = 0;
     this.predator = null;
+    this.predatorRandom = randomGenerator(this.seed ^ 0x5eed);
+    // Session counters for the end-of-session summary.
+    this.stats = { fleeStarts: 0, feedStarts: 0 };
   }
 
   setWeight(rule, value) {
@@ -173,7 +183,7 @@ export class Simulation {
     this.count = count;
   }
 
-  // Drops a pellet at the water surface (or a given height). A new pellet replaces the current one.
+  // Drops a pellet at the water surface (or a given height). The oldest pellet is replaced when full.
   addFood(x, z, y = CONFIG.height - 0.6) {
     if (![x, y, z].every(Number.isFinite)) return null;
     const pellet = { id: this.nextFoodId++,
@@ -191,7 +201,9 @@ export class Simulation {
   setPredator(enabled) {
     if (!enabled) { this.predator = null; return; }
     if (this.predator) return;
-    this.predator = { x: CONFIG.predatorX, y: CONFIG.predatorY, z: CONFIG.predatorZ, vx: 0, vy: 0, vz: 0 };
+    this.predatorRandom = randomGenerator(this.seed ^ 0x5eed);
+    this.predator = { x: -CONFIG.halfWidth + 5, y: CONFIG.height / 2, z: 0, vx: CONFIG.predatorPatrolSpeed, vy: 0, vz: 0,
+      mode: PREDATOR_MODE.hunt, modeTime: 0, target: -1, wx: 0, wy: CONFIG.height / 2, wz: 0 };
   }
 
   step(dt = CONFIG.step) {
@@ -249,6 +261,7 @@ export class Simulation {
       else if (foodDistance < CONFIG.feedEnter || (f.state === STATE.feed && foodDistance < CONFIG.feedExit)) state = STATE.feed;
       else state = STATE.cruise;
       const stateTime = state === f.state ? f.stateTime + dt : 0;
+      if (state !== f.state) { if (state === STATE.flee) this.stats.fleeStarts++; else if (state === STATE.feed) this.stats.feedStarts++; }
 
       let fx = 0, fy = 0, fz = 0;
       const scale = STATE_RULE_SCALE[state];
@@ -297,7 +310,10 @@ export class Simulation {
       next[i] = { id: f.id, x, y, z, vx, vy, vz, state, stateTime, target };
     }
 
+    // The predator also reads the old frame, so update order does not matter.
+    const nextPredator = predator ? this.#stepPredator(predator, fish, dt) : null;
     this.fish = next;
+    this.predator = nextPredator;
     // Pellets sink, are eaten and expire, so no fish chases a target that no longer exists.
     const remaining = [];
     food.forEach((pellet, k) => {
@@ -310,6 +326,43 @@ export class Simulation {
     });
     this.food = remaining;
     this.time += dt;
+  }
+
+  #stepPredator(p, fish, dt) {
+    let mode = p.mode, modeTime = p.modeTime + dt, { wx, wy, wz } = p;
+    const pickWaypoint = () => {
+      const r = this.predatorRandom;
+      wx = (r() - 0.5) * (CONFIG.halfWidth * 2 - 10); wy = 4 + r() * (CONFIG.height - 8); wz = (r() - 0.5) * (CONFIG.halfDepth * 2 - 10);
+    };
+    if (mode === PREDATOR_MODE.hunt && modeTime > CONFIG.predatorHunt) { mode = PREDATOR_MODE.rest; modeTime = 0; pickWaypoint(); }
+    else if (mode === PREDATOR_MODE.rest && modeTime > CONFIG.predatorRest) { mode = PREDATOR_MODE.hunt; modeTime = 0; }
+    let target = -1, best = CONFIG.predatorSense;
+    if (mode === PREDATOR_MODE.hunt) for (const f of fish) {
+      const d = len(f.x - p.x, f.y - p.y, f.z - p.z);
+      if (d < best) { best = d; target = f.id; }
+    }
+    let fx = 0, fy = 0, fz = 0, speed = CONFIG.predatorPatrolSpeed;
+    const prey = target >= 0 ? fish.find(f => f.id === target) : null;
+    if (prey) {
+      speed = CONFIG.predatorHuntSpeed;
+      [fx, fy, fz] = steer(prey.x + prey.vx * 0.4 - p.x, prey.y + prey.vy * 0.4 - p.y, prey.z + prey.vz * 0.4 - p.z,
+        p.vx, p.vy, p.vz, speed, CONFIG.predatorAcceleration);
+    } else {
+      if (len(wx - p.x, wy - p.y, wz - p.z) < 3) pickWaypoint();
+      [fx, fy, fz] = steer(wx - p.x, wy - p.y, wz - p.z, p.vx, p.vy, p.vz, speed, CONFIG.predatorAcceleration);
+    }
+    const [bx, by, bz] = wallForce(p.x, p.y, p.z, p.vx, p.vy, p.vz, CONFIG.predatorMargin + 2);
+    fx += bx; fy += by; fz += bz;
+    const [lx, ly, lz] = limit(fx, fy, fz, CONFIG.predatorAcceleration * 1.5);
+    let [vx, vy, vz] = clampSpeed(p.vx + lx * dt, p.vy + ly * dt, p.vz + lz * dt,
+      len(p.vx, p.vy, p.vz), speed, 1, dt, 0);
+    let x = p.x + vx * dt, y = p.y + vy * dt, z = p.z + vz * dt;
+    const m = CONFIG.predatorMargin;
+    if (Math.abs(x) > CONFIG.halfWidth - m) { x = Math.sign(x) * (CONFIG.halfWidth - m); vx = -Math.sign(x) * Math.abs(vx); }
+    if (y < m) { y = m; vy = Math.abs(vy); }
+    if (y > CONFIG.height - m) { y = CONFIG.height - m; vy = -Math.abs(vy); }
+    if (Math.abs(z) > CONFIG.halfDepth - m) { z = Math.sign(z) * (CONFIG.halfDepth - m); vz = -Math.sign(z) * Math.abs(vz); }
+    return { x, y, z, vx, vy, vz, mode, modeTime, target, wx, wy, wz };
   }
 
   stateCounts() {

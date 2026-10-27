@@ -1,13 +1,17 @@
 # AquaSwarm · Collective Behaviour Lab
 
-An interactive 3D fish-schooling simulation for the browser. One hundred fish follow the Boids rules (separation, alignment, cohesion). A small state machine adds feeding and fleeing. Each fish swims with a procedural tail beat driven by its own speed. You can drop food, add a predator, switch rules on and off, and stress-test the simulation up to 2000 fish.
+An interactive 3D fish-schooling simulation for the browser. One hundred fish follow the Boids rules (separation, alignment, cohesion). A small state machine adds feeding and fleeing. Each fish swims with a procedural tail beat driven by its own speed.
 
-This is the Assignment 3 MVP. Its scope is the MVP defined in Assignment 2: one tank, 100 fish of one type, one food point and one stationary predator.
+The app opens on a start menu with two modes:
 
-CS 549 AI for Visual Computing · Group AquaSwarm · Dongquan Yang (dy303) · Version 0.3.0 (Assignment 3 MVP)
+- **Explore the lab:** switch Boids rules, run behaviour scenarios, drop food, release a hunting predator, and stress-test up to 2000 fish. **Finish** shows a session summary.
+- **Feeding challenge:** get the school to eat 10 meals in 90 seconds while the predator hunts. Fish that flee stop eating, so where you drop food matters. It ends in a win or time-out screen and keeps your best time.
 
-- **Live demo:** https://polarfreeze.github.io/aquaswarm/
-- **Demo video (2:28):** [Google Drive](https://drive.google.com/file/d/1dXwZbWmqc93Bux9iuLTf61M0L1bciW_A/view?usp=drive_link). The local copy is `evidence/assignment-3-demo.webm`, with captions in `.srt` and a chapter list.
+CS 549 AI for Visual Computing · Group AquaSwarm · Dongquan Yang (dy303) · Version 0.4.0 (Assignment 4 alpha)
+
+- **Live demo:** https://polarfreeze.github.io/aquaswarm/ (the Assignment 3 MVP stays online at https://polarfreeze.github.io/aquaswarm/v0.3/)
+- **Release notes:** [CHANGELOG.md](CHANGELOG.md)
+- **Assignment 3 demo video (2:28):** [Google Drive](https://drive.google.com/file/d/1dXwZbWmqc93Bux9iuLTf61M0L1bciW_A/view?usp=drive_link). The local copy is `evidence/assignment-3-demo.webm`, with captions in `.srt` and a chapter list.
 
 ## Build and run
 
@@ -35,13 +39,15 @@ After `npm ci` the app needs no network: there are no external models, fonts, im
 
 | Action | How |
 | --- | --- |
-| Drop food | Click the water. Food sinks and is eaten gradually. There is one food point: a new click moves it. Clear food (C) removes it. |
-| Predator | Add predator (P). It stays at the centre of the tank and never eats fish; fish that swim close flee. |
+| Start | Pick a mode on the start menu. **Menu** (top right) returns to it. |
+| Drop food | Click the water. Food sinks and is eaten gradually. At most three pellets: a fourth replaces the oldest. Clear food (C) removes them. |
+| Predator | Release predator (P), explore mode only. It hunts the nearest fish for 6 s, then rests and patrols for 5 s. It is slower than a fleeing fish and never eats; fish that come close flee. |
+| Scenarios | Cruise, Feeding, Predator, Feed + predator. Each restarts from seed 549. |
 | Camera | Drag to orbit, scroll to zoom toward the pointer. Perspective and Top view buttons. Expand hides the side panel. |
 | Rules | Each Boids rule has its own on/off switch and a 0–3 weight slider. |
-| Behaviour & display | Swim animation on/off, colour by state, and a legend of the behaviour states. |
+| Display | Swim animation on/off and colour by state. |
 | Stress test | Population slider (10–2000), plus an automatic run at 100 → 2000 fish that reports FPS, simulation ms per step, and real-time rate. |
-| Transport | Pause/Resume (Space) and Reset (R). Reset restores the seed, rules, population, food, predator and camera. |
+| Transport | Pause/Resume (Space), Restart (R) and Finish (Esc). Restart repeats the current scenario or mode from the seed. Finish ends the session and shows the results screen. |
 
 Fish colours show their state: orange = cruise, green = feed, red = flee.
 
@@ -49,11 +55,11 @@ Fish colours show their state: orange = cruise, green = feed, red = flee.
 
 | File | Responsibility |
 | --- | --- |
-| `src/simulation.js` | Pure simulation, independent of Three.js: seeded RNG, Boids, uniform-grid neighbour search, behaviour state machine, food point, predator, fixed-step clock. |
+| `src/simulation.js` | Pure simulation, independent of Three.js: seeded RNG, Boids, uniform-grid neighbour search, behaviour state machine, food pellets, hunting predator, session counters, challenge rules, fixed-step clock. |
 | `src/animation.js` | `SwimAnimator`: smoothed yaw/pitch/bank, tail-beat phase and amplitude, turn bend. Pure JavaScript, so it is unit-tested. |
 | `src/fishGeometry.js` | Procedural low-poly fish and predator meshes, plus the vertex-shader swim deformation. |
 | `src/scene.js` | Three.js scene: instanced school and predator, shadows, food, camera. |
-| `src/main.js` | UI, input, main loop, stress test, and the test hooks (`?test` only). |
+| `src/main.js` | UI, game states (menu → explore or challenge → results), input, main loop, stress test, and the test hooks (`?test` only). |
 
 **Boids.** Each fish reads the previous step's state (double-buffered), so the order of updates does not matter.
 - Neighbours are found with a uniform grid of 7-unit cells (the perception radius).
@@ -64,10 +70,11 @@ Fish colours show their state: orange = cruise, green = feed, red = flee.
 
 **Behaviour.** Priority is flee > feed > cruise.
 - Fish **feed** when a pellet is within 13 units and stop beyond 17 units.
+- The **predator** hunts the nearest fish within 18 units at 4.3 u/s for 6 s, then rests and patrols at 2.2 u/s for 5 s, so it never chases forever. Fleeing fish reach 6.4 u/s, so they can always escape.
 - Fish **flee** when the predator is within 8 units. They keep fleeing until it is beyond 12 units and at least 1 s has passed.
 - The gap between the enter and exit distances (hysteresis) stops fish flickering between states.
 - Fleeing fish swim away from the predator at up to 6.4 u/s. When the threat is gone, they slow down gradually instead of snapping back.
-- The food is eaten gradually. With three or more fish eating, it lasts about 12 s; uneaten food expires after 45 s.
+- Each pellet is eaten gradually. With three or more fish eating, it lasts about 12 s (one "meal"); uneaten food expires after 45 s.
 
 **Animation.**
 - Tail-beat frequency is (0.8 + 0.75 × speed) Hz, and amplitude also grows with speed.
@@ -89,24 +96,28 @@ npx playwright install chromium
 npm run test:browser
 npm run compare:scenarios
 npm run compare:rules
+npm run balance
 npm run build && npm run perf
 npm run build && npm run record
 ```
 
-- `npm test`: 34 Node tests covering:
+- `npm test`: 36 Node tests covering:
   - Boids invariants and 10-minute runs, one with cruising only and one with the full feed/flee loop.
   - The grid neighbour search matches a brute-force search.
   - Determinism and overload behaviour of the fixed clock.
-  - Feeding, fleeing, priority, hysteresis and recovery.
+  - Feeding, the pellet cap, fleeing, priority, hysteresis, recovery and the predator's hunt/rest cycle.
+  - Session counters, and that the challenge is winnable with good food placement but not with random placement.
   - Swim-animation properties.
-- `npm run test:browser`: 4 Playwright tests on the real app:
-  - Controls, pause/resume and reset.
-  - Click to feed (one food point), predator, escape priority, recovery and display options.
-  - Population slider and stress test.
-  - Mobile layout.
-- `compare:scenarios` and `compare:rules` write seeded comparisons to `evidence/*-a3.json`.
-- `perf` measures the production build on this machine's GPU at 1920×1080. It runs 5 minutes steady state, then the stress test, then a crowding worst case, and writes `evidence/performance-a3.json`.
-- `record` makes the demo video.
+- `npm run test:browser`: 5 Playwright tests on the real app:
+  - Start menu, controls, pause/resume, restart, and the Space-after-click shortcut.
+  - Explore: feeding, pellet cap, scenarios, hunting predator, recovery, display options and the session summary.
+  - Challenge: HUD, a scripted player winning, best time, play again, and the time-out loss.
+  - Population slider and stress test (pausing stops it).
+  - Mobile layout of the menu and the lab.
+- `compare:scenarios` writes `evidence/scenario-comparison-a4.json`; `compare:rules` writes `evidence/rule-comparison-a3.json`.
+- `balance` plays the challenge with three scripted strategies on five seeds and writes `evidence/challenge-balance-a4.json`.
+- `perf` measures the production build on this machine's GPU at 1920×1080. It runs 5 minutes of the Feed + predator scenario, then the stress test, then a crowding worst case, and writes `evidence/performance-a4.json`.
+- `record` makes a captioned demo video of the lab.
 
 `VALIDATION.md` summarises the results.
 

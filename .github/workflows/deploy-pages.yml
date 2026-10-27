@@ -1,4 +1,5 @@
-# Builds the app and publishes dist/ to GitHub Pages on every push to main.
+# Builds the app and publishes dist/ to GitHub Pages on every push to main. Earlier assignment
+# releases stay online under their own path (the v0.3.0 tag is served at /v0.3/).
 # One-time setup: repository Settings → Pages → Source: "GitHub Actions".
 name: Deploy to GitHub Pages
 
@@ -21,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -28,6 +31,10 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Build the Assignment 3 release into dist/v0.3
+        run: |
+          git worktree add ../release-0.3 v0.3.0
+          cd ../release-0.3 && npm ci && npx vite build --outDir "$GITHUB_WORKSPACE/dist/v0.3" --emptyOutDir
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

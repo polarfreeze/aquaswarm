@@ -1,0 +1,92 @@
+{
+  "seed": 549,
+  "fish": 100,
+  "seconds": 60,
+  "predatorRemovedAt": 40,
+  "pellets": [
+    {
+      "x": -10,
+      "y": 11,
+      "z": 4
+    },
+    {
+      "x": 4,
+      "y": 11,
+      "z": -6
+    },
+    {
+      "x": 13,
+      "y": 11,
+      "z": 7
+    }
+  ],
+  "predator": {
+    "huntSeconds": 6,
+    "restSeconds": 5,
+    "huntSpeed": 4.3
+  },
+  "thresholds": {
+    "feedEnter": 13,
+    "feedExit": 17,
+    "fleeEnter": 8,
+    "fleeExit": 12,
+    "fleeHold": 1
+  },
+  "caveat": "One seed and one tank layout. Descriptive evidence for the behaviour loop, not a general result.",
+  "results": [
+    {
+      "scenario": "food only",
+      "meanFishPerState": {
+        "cruise": 78.8,
+        "feed": 21.2,
+        "flee": 0
+      },
+      "peakFeeding": 100,
+      "peakFleeing": 0,
+      "firstFeedingSeconds": 0.02,
+      "firstFleeingSeconds": null,
+      "allFoodGoneSeconds": 13.35,
+      "feedToFleeSwitches": 0,
+      "fleeEpisodes": 0,
+      "shortestFleeSeconds": null,
+      "recoverySecondsAfterPredatorRemoved": null,
+      "maxSpeed": 4.24
+    },
+    {
+      "scenario": "predator only",
+      "meanFishPerState": {
+        "cruise": 97.64,
+        "feed": 0,
+        "flee": 2.36
+      },
+      "peakFeeding": 0,
+      "peakFleeing": 16,
+      "firstFeedingSeconds": null,
+      "firstFleeingSeconds": 0.02,
+      "allFoodGoneSeconds": null,
+      "feedToFleeSwitches": 0,
+      "fleeEpisodes": 44,
+      "shortestFleeSeconds": 1.02,
+      "recoverySecondsAfterPredatorRemoved": 0.02,
+      "maxSpeed": 6.17
+    },
+    {
+      "scenario": "food + predator",
+      "meanFishPerState": {
+        "cruise": 69.97,
+        "feed": 22.18,
+        "flee": 7.85
+      },
+      "peakFeeding": 91,
+      "peakFleeing": 42,
+      "firstFeedingSeconds": 0.02,
+      "firstFleeingSeconds": 0.02,
+      "allFoodGoneSeconds": 20.47,
+      "feedToFleeSwitches": 87,
+      "fleeEpisodes": 173,
+      "shortestFleeSeconds": 1.02,
+      "recoverySecondsAfterPredatorRemoved": 0.02,
+      "maxSpeed": 5.86
+    }
+  ]
+}

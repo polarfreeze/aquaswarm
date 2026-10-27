@@ -21,6 +21,8 @@ try {
   const page = await context.newPage();
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(URL);
+  await page.waitForFunction(() => window.aquaswarmSnapshot?.().game.phase === 'menu');
+  await page.getByRole('button', { name: /Explore the lab/ }).click();
   await page.waitForFunction(() => window.aquaswarmSnapshot?.().time > 0.5);
   await page.addStyleTag({ content: `
     #demo-caption { position: absolute; left: 24px; bottom: 132px; z-index: 20; max-width: 560px; pointer-events: none;
@@ -79,7 +81,7 @@ try {
   await page.mouse.move(school.x, school.y);
   for (let i = 0; i < 8; i++) { await page.mouse.wheel(0, -200); await wait(0.15); }
   await wait(7);
-  await tab('Behaviour & display');
+  await tab('Display');
   await caption('2 · Procedural swimming', 'Swim animation <u>off</u>: rigid bodies that only rotate to face their velocity.');
   await page.locator('#swim').uncheck({ force: true }); await wait(4);
   await caption('2 · Procedural swimming', 'Swim animation <u>on</u> again: tail beat, body bend and banking.');
@@ -91,13 +93,13 @@ try {
     'A click drops food at the water surface; it sinks. Fish within 13 units switch to <span style="color:#3f9e4f">Feed</span> and seek it; the food is eaten gradually.');
   let p = await surface(-9, 3); await page.mouse.click(p.x, p.y);
   await wait(11);
-  await caption('3 · One food point', 'The MVP has a single food point: clicking again moves the food, and the feeding fish retarget.');
+  await caption('3 · More food', 'Up to three pellets at once; a fourth click replaces the oldest.');
   p = await surface(9, -5); await page.mouse.click(p.x, p.y);
   await wait(7);
 
   // 5. Predator
   await caption('4 · Add the predator',
-    'One stationary predator at the tank centre. Fish that come within 8 units <span style="color:#d6404e">Flee</span> and keep fleeing until 12 units away and at least 1 s has passed (hysteresis), so they do not flicker.');
+    'The predator hunts the nearest fish for 6 s, then rests. Fish that come within 8 units <span style="color:#d6404e">Flee</span> and keep fleeing until 12 units away and at least 1 s has passed (hysteresis), so they do not flicker.');
   await page.locator('#predator').click(); await wait(12);
 
   // 6. Escape priority

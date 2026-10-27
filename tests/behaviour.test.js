@@ -1,14 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Simulation, CONFIG, STATE } from '../src/simulation.js';
+import { Simulation, CONFIG, CHALLENGE, STATE, PREDATOR_MODE, randomGenerator } from '../src/simulation.js';
 
 const run = (sim, seconds, each) => { for (let i = 0; i < Math.round(seconds * 60); i++) { sim.step(); each?.(sim); } };
 const fishAt = (id, x, y, z, vx = 2, vy = 0, vz = 0, state = STATE.cruise, stateTime = 0) =>
   ({ id, x, y, z, vx, vy, vz, state, stateTime, target: -1 });
-// The MVP predator is stationary; tests place it where they need it.
-const parkedPredator = (x, y, z) => ({ x, y, z, vx: 0, vy: 0, vz: 0 });
-// Same food point for the food-only and combined runs, a few units from the predator.
-const PELLET = [5, 3];
+// A predator that barely moves for one step: zero velocity, resting at its own waypoint.
+const parkedPredator = (x, y, z) => ({ x, y, z, vx: 0, vy: 0, vz: 0, mode: PREDATOR_MODE.rest, modeTime: 0, target: -1, wx: x, wy: y, wz: z });
 
 test('nearby fish switch to feeding, eat the pellet, and return to cruising once it is gone', () => {
   const sim = new Simulation();
@@ -38,12 +36,11 @@ test('pellets sink to the floor and expire, so nobody chases a stale target', ()
   assert.equal(sim.fish[0].state, STATE.cruise);
 });
 
-test('there is one food point: a new pellet replaces the current one', () => {
+test('the pellet count is capped and the oldest pellet is replaced', () => {
   const sim = new Simulation();
-  assert.equal(CONFIG.maxFood, 1);
-  sim.addFood(-4, 0); const second = sim.addFood(6, 2);
-  assert.equal(sim.food.length, 1);
-  assert.equal(sim.food[0].id, second.id);
+  for (let i = 0; i < CONFIG.maxFood + 2; i++) sim.addFood(i - 4, 0);
+  assert.equal(sim.food.length, CONFIG.maxFood);
+  assert.deepEqual(sim.food.map(f => f.id), Array.from({ length: CONFIG.maxFood }, (_, i) => i + 2));
   assert.equal(sim.addFood(NaN, 0), null);
   sim.clearFood(); assert.equal(sim.food.length, 0);
 });
@@ -80,9 +77,9 @@ test('flee uses hysteresis: enter radius, exit radius and a minimum hold time', 
   assert.equal(sim.fish[0].state, STATE.cruise);
 });
 
-test('every flee episode lasts at least the hold time (no flicker) over 60 s near the predator', () => {
+test('every flee episode lasts at least the hold time (no flicker) during a 60 s hunt', () => {
   const sim = new Simulation();
-  sim.addFood(...PELLET, 11);
+  sim.addFood(-8, 4, 10); sim.addFood(8, -4, 10);
   sim.setPredator(true);
   const started = new Map(), episodes = [];
   let previous = sim.fish.map(f => f.state);
@@ -115,34 +112,88 @@ test('fleeing is faster than cruising, bounded, and decays smoothly after the pr
   assert.ok(maxDrop < (CONFIG.deceleration + CONFIG.fleeAcceleration) / 60 + 1e-9, `max drop per step ${maxDrop}`);
 });
 
-test('the predator stays where it was placed and never removes fish', () => {
+test('the predator alternates hunting and resting and never chases one fish forever', () => {
   const sim = new Simulation();
   sim.setPredator(true);
-  run(sim, 30);
-  assert.deepEqual(sim.predator, { x: CONFIG.predatorX, y: CONFIG.predatorY, z: CONFIG.predatorZ, vx: 0, vy: 0, vz: 0 });
-  assert.equal(sim.fish.length, CONFIG.count);
+  let longestHunt = 0, rests = 0, previous = PREDATOR_MODE.hunt;
+  run(sim, 60, s => {
+    const p = s.predator;
+    if (p.mode === PREDATOR_MODE.hunt) longestHunt = Math.max(longestHunt, p.modeTime);
+    if (p.mode === PREDATOR_MODE.rest && previous === PREDATOR_MODE.hunt) rests++;
+    previous = p.mode;
+    assert.ok(Math.hypot(p.vx, p.vy, p.vz) <= CONFIG.predatorHuntSpeed + 1e-9);
+    assert.ok(Math.abs(p.x) <= CONFIG.halfWidth - CONFIG.predatorMargin + 1e-9 && p.y >= CONFIG.predatorMargin - 1e-9);
+  });
+  assert.ok(rests >= 4, `rests: ${rests}`);
+  assert.ok(longestHunt <= CONFIG.predatorHunt + 1 / 60 + 1e-9);
+  // Slower than a fleeing fish, faster than a cruising one: escapes are possible but not trivial.
+  assert.ok(CONFIG.predatorHuntSpeed < CONFIG.fleeSpeed && CONFIG.predatorHuntSpeed > CONFIG.maxSpeed);
 });
 
 test('food-only, predator-only and combined scenarios from the same start differ as expected', () => {
   const scenario = (food, predator) => {
     const sim = new Simulation();
-    if (food) sim.addFood(...PELLET, 11);
+    if (food) for (const [x, z] of [[-10, 4], [4, -6], [13, 7]]) sim.addFood(x, z, 11);
     if (predator) sim.setPredator(true);
     const peak = { feed: 0, flee: 0 };
-    run(sim, 30, s => { const c = s.stateCounts(); peak.feed = Math.max(peak.feed, c.feed); peak.flee = Math.max(peak.flee, c.flee); });
+    run(sim, 10, s => { const c = s.stateCounts(); peak.feed = Math.max(peak.feed, c.feed); peak.flee = Math.max(peak.flee, c.flee); });
     return peak;
   };
   const food = scenario(true, false), predator = scenario(false, true), both = scenario(true, true);
-  assert.equal(food.flee, 0); assert.ok(food.feed > 30);
+  assert.equal(food.flee, 0); assert.ok(food.feed > 50);
   assert.equal(predator.feed, 0); assert.ok(predator.flee > 0);
   assert.ok(both.feed > 0 && both.flee > 0);
 });
 
-test('removing the predator lets every fish recover within the hold time', () => {
+test('removing the predator mid-chase lets every fish recover within the hold time', () => {
   const sim = new Simulation();
   sim.setPredator(true);
   run(sim, 15);
   sim.setPredator(false);
   run(sim, CONFIG.fleeHold + 0.05);
   assert.ok(sim.fish.every(f => f.state !== STATE.flee));
+});
+
+test('session counters record each switch into flee and feed', () => {
+  const sim = new Simulation();
+  sim.addFood(-8, 4, 10);
+  sim.setPredator(true);
+  let flees = 0, feeds = 0, previous = sim.fish.map(f => f.state);
+  run(sim, 20, s => {
+    s.fish.forEach((f, i) => {
+      if (f.state !== previous[i] && f.state === STATE.flee) flees++;
+      if (f.state !== previous[i] && f.state === STATE.feed) feeds++;
+    });
+    previous = s.fish.map(f => f.state);
+  });
+  assert.ok(flees > 0 && feeds > 0);
+  assert.deepEqual(sim.stats, { fleeStarts: flees, feedStarts: feeds });
+  sim.reset();
+  assert.deepEqual(sim.stats, { fleeStarts: 0, feedStarts: 0 });
+});
+
+test('the feeding challenge is winnable with good food placement and lost without it', () => {
+  // Same rules as the in-app challenge: hunting predator, food dropped every 4 s, fixed seed.
+  const play = place => {
+    const sim = new Simulation();
+    sim.setPredator(true);
+    for (let t = 0; t < CHALLENGE.seconds * 60; t++) {
+      if (t % 240 === 0) place(sim, t);
+      sim.step();
+      if (sim.foodEaten >= CHALLENGE.meals * CONFIG.foodAmount) return sim.time;
+    }
+    return null;
+  };
+  // Good: near the school's centre, pushed away from the predator.
+  const good = play(sim => {
+    const n = sim.fish.length, p = sim.predator;
+    const cx = sim.fish.reduce((a, f) => a + f.x / n, 0), cz = sim.fish.reduce((a, f) => a + f.z / n, 0);
+    const d = Math.hypot(cx - p.x, cz - p.z) || 1;
+    sim.addFood(cx + (cx - p.x) / d * 4, cz + (cz - p.z) / d * 4);
+  });
+  // Poor: anywhere in the tank, ignoring where the school and the predator are (seeded).
+  const random = randomGenerator(11);
+  const poor = play(sim => sim.addFood((random() - 0.5) * 44, (random() - 0.5) * 30));
+  assert.ok(good !== null && good < CHALLENGE.seconds, `good placement finished at ${good}`);
+  assert.equal(poor, null);
 });

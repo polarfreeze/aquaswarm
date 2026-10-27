@@ -1,11 +1,11 @@
-// MVP proof: food-only, predator-only and combined scenarios from the same seeded start.
-// Writes evidence/scenario-comparison-a3.json. Pure simulation, no browser.
+// Food-only, predator-only and combined scenarios from the same seeded start, using the same three
+// pellets as the in-app scenarios and the hunting predator.
+// Writes evidence/scenario-comparison-a4.json (the A3 file is kept as the MVP record). No browser.
 import { Simulation, CONFIG, STATE } from '../src/simulation.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 
 const SECONDS = 60, PREDATOR_OFF_AT = 40;
-// One food point, a few units from the stationary predator at the tank centre.
-const PELLETS = [[5, 3]];
+const PELLETS = [[-10, 4], [4, -6], [13, 7]];
 
 function runScenario(name, { food, predator }) {
   const sim = new Simulation();
@@ -55,12 +55,12 @@ const results = [
   runScenario('food + predator', { food: true, predator: true }),
 ];
 await mkdir('evidence', { recursive: true });
-await writeFile('evidence/scenario-comparison-a3.json', JSON.stringify({
+await writeFile('evidence/scenario-comparison-a4.json', JSON.stringify({
   seed: CONFIG.seed, fish: CONFIG.count, seconds: SECONDS, predatorRemovedAt: PREDATOR_OFF_AT,
   pellets: PELLETS.map(([x, z]) => ({ x, y: 11, z })),
-  predator: { x: CONFIG.predatorX, y: CONFIG.predatorY, z: CONFIG.predatorZ, stationary: true },
+  predator: { huntSeconds: CONFIG.predatorHunt, restSeconds: CONFIG.predatorRest, huntSpeed: CONFIG.predatorHuntSpeed },
   thresholds: { feedEnter: CONFIG.feedEnter, feedExit: CONFIG.feedExit, fleeEnter: CONFIG.fleeEnter, fleeExit: CONFIG.fleeExit, fleeHold: CONFIG.fleeHold },
-  caveat: 'One seed and one tank layout. Descriptive evidence for the MVP behaviour loop, not a general result.',
+  caveat: 'One seed and one tank layout. Descriptive evidence for the behaviour loop, not a general result.',
   results }, null, 2));
 console.table(results.map(r => ({ scenario: r.scenario, ...r.meanFishPerState, peakFeed: r.peakFeeding, peakFlee: r.peakFleeing,
   foodGone: r.allFoodGoneSeconds, feedToFlee: r.feedToFleeSwitches, shortestFlee: r.shortestFleeSeconds,
