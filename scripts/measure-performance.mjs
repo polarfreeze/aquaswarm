@@ -1,6 +1,6 @@
 // Measures the production build in Chromium on this machine's GPU (D3D11 via ANGLE when available):
-// 5-minute steady state at 100 fish, the in-app stress test, and a 2000-fish crowding worst case.
-// Writes evidence/performance-a4.json. Headless frames are not vsync-capped, so FPS can exceed 60.
+// 5-minute steady state at 100 fish in the obstacle course, the in-app stress test (in the same tank)
+// and a 2000-fish crowding worst case. Writes evidence/performance-a5.json (A4 file kept as a record). Headless frames are not vsync-capped, so FPS can exceed 60.
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -42,16 +42,16 @@ try {
       simulatedPerRealSecond: (s.time - t0) / (total / 1000), fish: s.fish.length, states: s.summary.states };
   }, seconds * 1000);
 
-  // Steady state: the Feed + predator scenario (three pellets, hunting predator) is the busiest
-  // 100-fish case. Pellets last about 15 s, so a new one is dropped every 20 s during the measurement.
+  // Steady state: the Obstacle course scenario (five obstacles, three pellets, hunting predator) is the
+  // busiest 100-fish case. Pellets last about 15 s, so a new one is dropped every 20 s.
   const dropFood = async () => { const p = await page.evaluate(() => window.aquaswarmProjectPoint(5, 18, 3)); await page.mouse.click(p.x, p.y); };
-  await page.getByRole('button', { name: /Feed \+ predator/ }).click();
+  await page.getByRole('button', { name: /Obstacle course/ }).click();
   const feeder = setInterval(() => dropFood().catch(() => {}), 20000);
   const steady = await measure(300);
   clearInterval(feeder);
   console.log('steady', steady);
 
-  // In-app stress test: 100 → 2000 fish, about 3 s per level.
+  // In-app stress test: 100 → 2000 fish, about 3 s per level, with the five obstacles in place.
   await page.getByRole('tab', { name: 'Stress test' }).click();
   await page.locator('#reset').click();
   await page.getByRole('button', { name: /Run stress test/ }).click();
@@ -69,9 +69,10 @@ try {
   console.log('crowding', crowding);
 
   await mkdir('evidence', { recursive: true });
-  await writeFile('evidence/performance-a4.json', JSON.stringify({ date: new Date().toISOString(),
+  const obstacles = await page.evaluate(() => window.aquaswarmSnapshot().obstacles.length);
+  await writeFile('evidence/performance-a5.json', JSON.stringify({ date: new Date().toISOString(),
     browser: `Chromium ${browser.version()} (headless, GPU via ANGLE)`, renderer, os: `${os.platform()} ${os.release()}`,
     cpu: os.cpus()[0].model, viewport: '1920 × 1080', build: 'vite production build (npm run build)',
     note: 'Headless rAF is not vsync-capped; a visible browser tab is limited to the display refresh rate. Simulation is fixed-step 60 Hz with at most 4 steps and a 12 ms step budget per frame; when overloaded, simulated time slows (see simulatedPerRealSecond).',
-    steadyState100FishFoodAndPredator: steady, stressTest: stress, stressSummary: summary, crowding2000FishOnePellet: crowding, errors }, null, 2));
+    obstacles, steadyState100FishObstacleCourse: steady, stressTest: stress, stressSummary: summary, crowding2000FishOnePellet: crowding, errors }, null, 2));
 } finally { if (browser) await browser.close(); server.kill(); }

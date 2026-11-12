@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.5.0 · Assignment 5 obstacles (2026-11-10)
+
+Live: https://polarfreeze.github.io/aquaswarm/ · previous releases: https://polarfreeze.github.io/aquaswarm/v0.4/ and https://polarfreeze.github.io/aquaswarm/v0.3/
+
+### New features
+
+- **Obstacles.** Boulders (spheres half-buried in the sand, radius 4 u) and coral columns (vertical cylinders through the whole water depth, radius 1.6 u). Up to six at once. Each keeps at least 3.2 u of open water to the glass and to every other obstacle, so no layout can close a passage.
+- **Obstacle avoidance in every state.** Fish look 1.1 s ahead along their path and steer sideways around any obstacle in the way, while cruising, feeding and fleeing. The predator uses the same steering and never picks a patrol point inside a rock.
+- **Push-out as a safety net.** If a fish body (the same capsule used for body contact) still ends a step inside an obstacle, it is moved back to the surface and loses only the speed pointing into it, so it slides along instead of stopping or bouncing. The predator gets the same treatment with a larger body.
+- **Cover.** Rocks and coral block sight: a fish behind one does not see the predator, and the predator cannot target it. Closer than 4 u the fish still feels the predator through the rock.
+- **Lab tools.** A click tool bar: Food (F), Boulder (B), Coral (O) and Remove (X). A green or red preview shows where an obstacle fits; blocked spots give a reason. **Clear rocks** removes all. Restart keeps the obstacles you placed.
+- **Obstacle course scenario.** Two boulders, three coral columns, three pellets and the predator.
+- **Obstacle avoidance switch** on the Rules tab, to compare steering with push-out only.
+- **Challenge tank.** The feeding challenge now has two boulders and two coral columns. Food dropped behind a rock, away from the predator, is the safest meal. Target unchanged: 11 meals in 90 s.
+- **Pellets and rocks.** Pellets sink onto the top of a boulder instead of into it, and a pellet dropped over a column lands just beside it.
+- **New assets, all generated in code.** Low-poly boulders, lumpy coral columns in three colour schemes, and swaying sea grass along the glass (decoration only).
+- **A4 build kept online** at `/v0.4/`.
+- **Evidence.** `npm run compare:obstacles` writes `evidence/obstacles-a5.json`; the balance and performance runs now use the obstacle layouts (`evidence/challenge-balance-a5.json`, `evidence/performance-a5.json`).
+
+### Known issues
+
+- Avoidance is local steering, not path planning. It handles open layouts like the ones the placement rules allow, not mazes.
+- The meshes are drawn slightly inside their colliders (rocks are rough, coral is lumpy), so fish turn a little before they visibly reach a rock.
+- In a dense crowd on food, body contact between fish can move a fish up to about 0.4 u in one step. This also happens without obstacles (0.35 u).
+- Cover is a straight sight line to the predator's centre; fish do not reason about where the predator will go.
+- Large crowds are slower in a tank with rocks, because feeding crowds press against them: the stress test gives 49 FPS at 1000 fish (57 in A4) and 18 FPS at 2000. The neighbour cap is planned for A6.
+- Challenge difficulty is still tuned with scripted players only.
+
 ## v0.4.0 · Assignment 4 alpha (2026-10-27)
 
 Live: https://polarfreeze.github.io/aquaswarm/ · previous release: https://polarfreeze.github.io/aquaswarm/v0.3/

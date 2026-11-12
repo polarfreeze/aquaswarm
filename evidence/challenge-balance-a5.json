@@ -1,0 +1,701 @@
+{
+  "challenge": {
+    "meals": 11,
+    "seconds": 90
+  },
+  "layout": [
+    [
+      "boulder",
+      -11,
+      -5
+    ],
+    [
+      "boulder",
+      12,
+      5
+    ],
+    [
+      "column",
+      -2,
+      7
+    ],
+    [
+      "column",
+      4,
+      -7
+    ]
+  ],
+  "dropEverySeconds": 4,
+  "seeds": [
+    549,
+    7,
+    1234,
+    2026,
+    42
+  ],
+  "irregularDropSeconds": [
+    2.5,
+    6.5
+  ],
+  "irregularSeeds": [
+    549,
+    7,
+    1234,
+    2026,
+    42,
+    1000,
+    1037,
+    1074,
+    1111,
+    1148,
+    1185,
+    1222,
+    1259,
+    1296,
+    1333,
+    1370,
+    1407,
+    1444,
+    1481,
+    1518
+  ],
+  "caveat": "Scripted players, not people. A person can aim more precisely, so this bounds difficulty rather than measuring it.",
+  "results": [
+    {
+      "strategy": "no food",
+      "wins": 0,
+      "runs": [
+        {
+          "seed": 549,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 7,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1234,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 2026,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 42,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        }
+      ],
+      "irregularWins": 0,
+      "irregular": [
+        {
+          "seed": 549,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 7,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1234,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 2026,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 42,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1000,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1037,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1074,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1111,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1148,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1185,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1222,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1259,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1296,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1333,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1370,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1407,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1444,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1481,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        },
+        {
+          "seed": 1518,
+          "won": false,
+          "seconds": 90,
+          "meals": 0
+        }
+      ]
+    },
+    {
+      "strategy": "random spot",
+      "wins": 0,
+      "runs": [
+        {
+          "seed": 549,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.8
+        },
+        {
+          "seed": 7,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.1
+        },
+        {
+          "seed": 1234,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.6
+        },
+        {
+          "seed": 2026,
+          "won": false,
+          "seconds": 90,
+          "meals": 7.5
+        },
+        {
+          "seed": 42,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.5
+        }
+      ],
+      "irregularWins": 1,
+      "irregular": [
+        {
+          "seed": 549,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.7
+        },
+        {
+          "seed": 7,
+          "won": false,
+          "seconds": 90,
+          "meals": 7.8
+        },
+        {
+          "seed": 1234,
+          "won": true,
+          "seconds": 89.2,
+          "meals": 11
+        },
+        {
+          "seed": 2026,
+          "won": false,
+          "seconds": 90,
+          "meals": 7.8
+        },
+        {
+          "seed": 42,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.3
+        },
+        {
+          "seed": 1000,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.5
+        },
+        {
+          "seed": 1037,
+          "won": false,
+          "seconds": 90,
+          "meals": 7.5
+        },
+        {
+          "seed": 1074,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.7
+        },
+        {
+          "seed": 1111,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.8
+        },
+        {
+          "seed": 1148,
+          "won": false,
+          "seconds": 90,
+          "meals": 7.9
+        },
+        {
+          "seed": 1185,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.1
+        },
+        {
+          "seed": 1222,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.5
+        },
+        {
+          "seed": 1259,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.5
+        },
+        {
+          "seed": 1296,
+          "won": false,
+          "seconds": 90,
+          "meals": 10.2
+        },
+        {
+          "seed": 1333,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.8
+        },
+        {
+          "seed": 1370,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.9
+        },
+        {
+          "seed": 1407,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.3
+        },
+        {
+          "seed": 1444,
+          "won": false,
+          "seconds": 90,
+          "meals": 6.7
+        },
+        {
+          "seed": 1481,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.4
+        },
+        {
+          "seed": 1518,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.8
+        }
+      ]
+    },
+    {
+      "strategy": "near school, away from predator",
+      "wins": 2,
+      "runs": [
+        {
+          "seed": 549,
+          "won": true,
+          "seconds": 56.5,
+          "meals": 11
+        },
+        {
+          "seed": 7,
+          "won": false,
+          "seconds": 90,
+          "meals": 6.5
+        },
+        {
+          "seed": 1234,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.1
+        },
+        {
+          "seed": 2026,
+          "won": true,
+          "seconds": 55.9,
+          "meals": 11
+        },
+        {
+          "seed": 42,
+          "won": false,
+          "seconds": 90,
+          "meals": 10.8
+        }
+      ],
+      "irregularWins": 17,
+      "irregular": [
+        {
+          "seed": 549,
+          "won": true,
+          "seconds": 66.2,
+          "meals": 11
+        },
+        {
+          "seed": 7,
+          "won": true,
+          "seconds": 68.1,
+          "meals": 11
+        },
+        {
+          "seed": 1234,
+          "won": false,
+          "seconds": 90,
+          "meals": 10.7
+        },
+        {
+          "seed": 2026,
+          "won": true,
+          "seconds": 59.7,
+          "meals": 11
+        },
+        {
+          "seed": 42,
+          "won": true,
+          "seconds": 61.3,
+          "meals": 11
+        },
+        {
+          "seed": 1000,
+          "won": true,
+          "seconds": 59.3,
+          "meals": 11
+        },
+        {
+          "seed": 1037,
+          "won": true,
+          "seconds": 65,
+          "meals": 11
+        },
+        {
+          "seed": 1074,
+          "won": true,
+          "seconds": 65.7,
+          "meals": 11
+        },
+        {
+          "seed": 1111,
+          "won": true,
+          "seconds": 79.4,
+          "meals": 11
+        },
+        {
+          "seed": 1148,
+          "won": true,
+          "seconds": 65,
+          "meals": 11
+        },
+        {
+          "seed": 1185,
+          "won": true,
+          "seconds": 66.6,
+          "meals": 11
+        },
+        {
+          "seed": 1222,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.1
+        },
+        {
+          "seed": 1259,
+          "won": true,
+          "seconds": 88.3,
+          "meals": 11
+        },
+        {
+          "seed": 1296,
+          "won": true,
+          "seconds": 57.7,
+          "meals": 11
+        },
+        {
+          "seed": 1333,
+          "won": true,
+          "seconds": 60.7,
+          "meals": 11
+        },
+        {
+          "seed": 1370,
+          "won": true,
+          "seconds": 56.9,
+          "meals": 11
+        },
+        {
+          "seed": 1407,
+          "won": true,
+          "seconds": 58.9,
+          "meals": 11
+        },
+        {
+          "seed": 1444,
+          "won": false,
+          "seconds": 90,
+          "meals": 9.2
+        },
+        {
+          "seed": 1481,
+          "won": true,
+          "seconds": 60.4,
+          "meals": 11
+        },
+        {
+          "seed": 1518,
+          "won": true,
+          "seconds": 61.4,
+          "meals": 11
+        }
+      ]
+    },
+    {
+      "strategy": "behind the rock nearest the school",
+      "wins": 5,
+      "runs": [
+        {
+          "seed": 549,
+          "won": true,
+          "seconds": 73.4,
+          "meals": 11
+        },
+        {
+          "seed": 7,
+          "won": true,
+          "seconds": 54.9,
+          "meals": 11
+        },
+        {
+          "seed": 1234,
+          "won": true,
+          "seconds": 86.9,
+          "meals": 11
+        },
+        {
+          "seed": 2026,
+          "won": true,
+          "seconds": 54.3,
+          "meals": 11
+        },
+        {
+          "seed": 42,
+          "won": true,
+          "seconds": 83.1,
+          "meals": 11
+        }
+      ],
+      "irregularWins": 13,
+      "irregular": [
+        {
+          "seed": 549,
+          "won": true,
+          "seconds": 77,
+          "meals": 11
+        },
+        {
+          "seed": 7,
+          "won": true,
+          "seconds": 57,
+          "meals": 11
+        },
+        {
+          "seed": 1234,
+          "won": false,
+          "seconds": 90,
+          "meals": 7.4
+        },
+        {
+          "seed": 2026,
+          "won": true,
+          "seconds": 59.8,
+          "meals": 11
+        },
+        {
+          "seed": 42,
+          "won": true,
+          "seconds": 84.4,
+          "meals": 11
+        },
+        {
+          "seed": 1000,
+          "won": true,
+          "seconds": 55,
+          "meals": 11
+        },
+        {
+          "seed": 1037,
+          "won": true,
+          "seconds": 57.9,
+          "meals": 11
+        },
+        {
+          "seed": 1074,
+          "won": false,
+          "seconds": 90,
+          "meals": 11
+        },
+        {
+          "seed": 1111,
+          "won": true,
+          "seconds": 54,
+          "meals": 11
+        },
+        {
+          "seed": 1148,
+          "won": false,
+          "seconds": 90,
+          "meals": 10.4
+        },
+        {
+          "seed": 1185,
+          "won": true,
+          "seconds": 59,
+          "meals": 11
+        },
+        {
+          "seed": 1222,
+          "won": true,
+          "seconds": 69.2,
+          "meals": 11
+        },
+        {
+          "seed": 1259,
+          "won": true,
+          "seconds": 71.6,
+          "meals": 11
+        },
+        {
+          "seed": 1296,
+          "won": false,
+          "seconds": 90,
+          "meals": 11
+        },
+        {
+          "seed": 1333,
+          "won": true,
+          "seconds": 61.1,
+          "meals": 11
+        },
+        {
+          "seed": 1370,
+          "won": true,
+          "seconds": 55.9,
+          "meals": 11
+        },
+        {
+          "seed": 1407,
+          "won": false,
+          "seconds": 90,
+          "meals": 10.9
+        },
+        {
+          "seed": 1444,
+          "won": false,
+          "seconds": 90,
+          "meals": 8.5
+        },
+        {
+          "seed": 1481,
+          "won": true,
+          "seconds": 59.2,
+          "meals": 11
+        },
+        {
+          "seed": 1518,
+          "won": false,
+          "seconds": 90,
+          "meals": 10.5
+        }
+      ]
+    }
+  ]
+}

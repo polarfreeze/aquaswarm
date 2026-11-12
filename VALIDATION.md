@@ -1,5 +1,71 @@
 # Validation
 
+## Assignment 5 obstacles (v0.5.0)
+
+Date: 2026-11-02. Same machine as below (Windows 11, Intel Core Ultra 5 125H, Intel Arc graphics, Node 22.19.0).
+
+### Requirements from the plan
+
+| A5 goal | Evidence |
+| --- | --- |
+| Place and remove a few simple obstacles | Boulders (spheres) and coral columns (full-depth cylinders), up to six; tool bar and keys F/B/O/X, preview, Clear rocks (browser test 4) |
+| Fish avoid them while cruising, feeding and fleeing | Look-ahead steering in every state; table below; unit test with food + predator sees all three states and no overlap |
+| Bounding-volume contact and penetration correction | Fish body capsule against sphere / vertical cylinder; push-out along the normal after every step |
+| No lasting stuck fish, no crossing, no jitter, no flinging | Unit tests: fast swims straight at a column and a boulder, a sharp turn beside a column, no fish in contact for 2 s; table below |
+| Obstacles never close a channel | Placement keeps 3.2 u to the glass and between obstacles (unit test 1) |
+| Predator handles them too | Same steering; push-out with its larger body; patrol points never inside a rock (unit test) |
+
+### Automated results
+
+- `npm test`: 47/47 pass. New file `tests/obstacles.test.js` (9 tests): placement rules; no fish body inside an obstacle after any step while cruising, feeding beside a boulder or columns, with food + predator, and with separation off; avoidance needs at least 5× fewer push-outs than push-out alone; a fish swimming straight at a column or a boulder at cruise and flee speed turns away, never overlaps and keeps its minimum speed; a fleeing fish pushed into a column slides along it without a jump; no fish stays in contact for 2 s; the predator never overlaps a rock; obstacles placed on fish push them out; pellets avoid columns and rest on boulders; cover blocks sight both ways. The challenge test now uses the rock layout.
+- `npm run test:browser`: 6/6 pass in Chromium. New: placing with buttons and keys, refused spots with their reasons, fish outside the obstacles, Restart keeping rocks, Remove, Clear rocks, the Obstacle course scenario and the avoidance switch. The challenge test checks the rock layout and plays by dropping food behind the rock nearest the school.
+- `npm run build`: passes.
+
+### Obstacle behaviour (`evidence/obstacles-a5.json`)
+
+Seed 549, 100 fish, 60 s, boulders at (-10, 3) and (13, -6), columns at (0, -4) and (8, 6). Overlap is measured independently of the simulation by sampling each fish's body capsule. "Touching" means a fish centre within body radius + 0.2 u of a surface.
+
+| Situation | Deepest overlap after a step | Push-outs, avoidance on / off | Fish touching (mean), on / off | Longest contact, on / off | Largest one-step move, on / off |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Cruise | 0 | 29 / 4,040 | 0.00 / 2.68 | 0.2 / 3.9 s | 0.10 / 0.11 u |
+| Food on a boulder | 0 | 31 / 1,761 | 0.00 / 1.31 | 0.2 / 4.1 s | 0.33 / 0.24 u |
+| Food beside columns | 0 | 259 / 5,987 | 0.29 / 3.77 | 3.2 / 9.5 s | 0.26 / 0.34 u |
+| Food + predator | 0 | 288 / 5,549 | 0.21 / 3.63 | 3.2 / 8.3 s | 0.38 / 0.29 u |
+| Separation off, food | 0 | 23 / 1,794 | 0.00 / 0.91 | 0.2 / 4.2 s | 0.32 / 0.38 u |
+
+- No body ever ended a step inside an obstacle; the push-out catches what steering misses.
+- With avoidance on, the push-out acts 19–139 times less often, and fish rarely touch a rock.
+- The 3.2 s contacts are fish feeding along a column next to a pellet; the test for stuck fish (no food) stays under 2 s.
+- One-step moves above 0.1 u (top speed is 6.4 u/s, about 0.11 u per step) come from fish-fish body contact in crowds on food. Without any obstacles the same crowds give 0.29–0.35 u, so obstacles do not add flinging.
+- Cost: 0.14 → 0.18 ms per step at 100 fish and no measurable change at 1000 fish (11.1 ms) with four obstacles (Node).
+
+### Challenge balance (`evidence/challenge-balance-a5.json`)
+
+Target unchanged: 11 meals in 90 s, hunting predator, now with two boulders and two columns. Scripted players, not people.
+
+| Strategy | Every 4 s, 5 seeds | Irregular 2.5–6.5 s, 20 seeds |
+| --- | ---: | ---: |
+| Behind the rock nearest the school, away from the predator | 5/5 (54–87 s) | 13/20 |
+| Near the school, away from the predator | 2/5 | 17/20 |
+| Random spot | 0/5 | 1/20 |
+| No food | 0/5 | 0/20 |
+
+Both informed strategies stay viable and random placement does not win, so the target stays at 11.
+
+### Performance (`evidence/performance-a5.json`)
+
+Production build, headless Chromium with the Intel Arc GPU (D3D11), 1920 × 1080. Headless frames are not vsync-capped.
+
+- Obstacle course scenario (100 fish, five obstacles, hunting predator, a pellet every 20 s) for 5 minutes: 120.0 FPS mean, p95 frame 8.4 ms, worst 16.7 ms, simulation at real time, no page errors.
+- Stress test in the same tank (food and predator active): 120 FPS up to 500 fish, 49.4 at 1000, 27.6 at 1500, 17.9 at 2000; at least 30 FPS up to 1000 fish.
+- Crowding (2000 fish on one pellet): 20.5 FPS, simulation at 0.35× real time.
+
+The stress levels are lower than in A4 (1000 fish: 56.8 → 49.4 FPS; 1500: 32.5 → 27.6). The A4 run used the Feed + predator tank; this one uses the obstacle course, where feeding crowds press against the rocks and produce more fish-fish contacts. In Node, the same two set-ups cost 18.5 vs 20.7 ms per step at 1000 fish and 32.9 vs 37.8 ms at 1500 (12–15% more). At 100 fish obstacles cost almost nothing. The neighbour cap planned for A6 targets these crowds.
+
+### Visual check
+
+Screenshots from the GPU build at 1600 × 1000 and 390 × 844: the coral, boulders and sea grass render, the placement preview turns red when an obstacle does not fit, and the tool bar collapses to icons on narrow screens with distinct icons for Clear food and Clear rocks.
+
 ## Assignment 4 alpha (v0.4.0)
 
 Date: 2026-10-26. Same machine as below (Windows 11, Intel Core Ultra 5 125H, Intel Arc graphics, Node 22.19.0).

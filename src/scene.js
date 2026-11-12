@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CONFIG, STATE } from './simulation.js';
 import { buildFishGeometry, addSwimDeformation } from './fishGeometry.js';
+import { buildBoulderGeometry, buildColumnGeometry, buildBladeGeometry, addSwayDeformation } from './obstacleGeometry.js';
 
 export const STATE_COLORS = Object.freeze(['#e8914a', '#3f9e4f', '#d6404e']);
 const FISH_SCALE = 1.2, PREDATOR_SCALE = 3.2;
@@ -70,6 +71,54 @@ export function createScene(container) {
   surface.rotation.x = -Math.PI / 2; surface.position.y = height;
   scene.add(surface);
 
+  const transform = new THREE.Object3D();
+  // Sea grass: decoration only (fish swim through it), clumps along the back glass and in corners.
+  const swayUniforms = { uTime: { value: 0 } };
+  const grassMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide });
+  addSwayDeformation(grassMaterial, swayUniforms);
+  const clumps = [[-20, -14], [-13, -15], [-4, -15.2], [6, -14.8], [15, -15], [21, -12], [-21, 12], [21, 13], [-21, -2], [21.5, 3]];
+  const grass = new THREE.InstancedMesh(buildBladeGeometry(), grassMaterial, clumps.length * 9);
+  {
+    let k = 0;
+    clumps.forEach(([cx, cz], c) => {
+      for (let b = 0; b < 9; b++) {
+        const angle = (c * 9 + b) * 2.399, spread = 0.25 + (b % 3) * 0.35;
+        transform.position.set(cx + Math.cos(angle) * spread, -0.2, cz + Math.sin(angle) * spread);
+        transform.rotation.set(0, angle, 0);
+        transform.scale.set(1 + (b % 2) * 0.4, 2.2 + ((c * 7 + b * 3) % 10) * 0.32, 1);
+        transform.updateMatrix();
+        grass.setMatrixAt(k++, transform.matrix);
+      }
+    });
+  }
+  scene.add(grass);
+
+  // Obstacles: one mesh per boulder or coral column, built from the obstacle id as seed.
+  const rockMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true });
+  const obstacleMeshes = new Map();
+  function syncObstacles(obstacles) {
+    const live = new Set(obstacles.map(o => o.id));
+    for (const [id, mesh] of obstacleMeshes) if (!live.has(id)) { scene.remove(mesh); mesh.geometry.dispose(); obstacleMeshes.delete(id); }
+    for (const o of obstacles) {
+      if (obstacleMeshes.has(o.id)) continue;
+      const column = o.kind === 'column';
+      const mesh = new THREE.Mesh(column ? buildColumnGeometry(549 + o.id * 31) : buildBoulderGeometry(549 + o.id * 31), rockMaterial);
+      if (column) { mesh.position.set(o.x, -0.2, o.z); mesh.scale.set(o.r, height + 0.25, o.r); mesh.rotation.y = o.id * 1.7; }
+      else { mesh.position.set(o.x, o.y, o.z); mesh.scale.setScalar(o.r); mesh.rotation.y = o.id * 2.3; }
+      mesh.userData.obstacleId = o.id;
+      scene.add(mesh);
+      obstacleMeshes.set(o.id, mesh);
+    }
+  }
+  // Placement preview: the obstacle's real collider shape, green where it fits and red where not.
+  const ghostMaterial = new THREE.MeshBasicMaterial({ color: '#2f9e6a', transparent: true, opacity: 0.22, depthWrite: false });
+  const ghosts = {
+    boulder: new THREE.Mesh(new THREE.SphereGeometry(1, 24, 14), ghostMaterial),
+    column: new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 24, 1, true).translate(0, 0.5, 0), ghostMaterial),
+    remove: new THREE.Mesh(new THREE.RingGeometry(1.05, 1.25, 40).rotateX(-Math.PI / 2), ghostMaterial),
+  };
+  Object.values(ghosts).forEach(g => { g.visible = false; g.renderOrder = 2; scene.add(g); });
+
   // School: one instanced, vertex-coloured mesh with the swim wave in the vertex shader.
   const swimUniforms = { uSwimOn: { value: 1 } };
   const makeSwimMesh = (kind, capacity) => {
@@ -113,7 +162,6 @@ export function createScene(container) {
   scene.add(ripple);
   let rippleStart = -Infinity;
 
-  const transform = new THREE.Object3D();
   let colorMode = 'species';
 
   function poseAgent(mesh, swim, index, agent, animator, i, scale) {
@@ -133,6 +181,8 @@ export function createScene(container) {
   }
 
   function update(simulation, animator, predatorAnimator, now) {
+    swayUniforms.uTime.value = now / 1000;
+    syncObstacles(simulation.obstacles);
     const fish = simulation.fish;
     for (let i = 0; i < fish.length; i++) {
       const f = fish[i];
@@ -201,6 +251,7 @@ export function createScene(container) {
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const surfacePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -height);
+  const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const hit = new THREE.Vector3();
   function rayFrom(clientX, clientY) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -224,6 +275,28 @@ export function createScene(container) {
       if (!rayFrom(clientX, clientY).intersectPlane(surfacePlane, hit)) return null;
       if (Math.abs(hit.x) > CONFIG.halfWidth - 1 || Math.abs(hit.z) > CONFIG.halfDepth - 1) return null;
       return { x: hit.x, z: hit.z };
+    },
+    // Obstacles are placed where the click ray meets the sand.
+    floorPoint(clientX, clientY) {
+      if (!rayFrom(clientX, clientY).intersectPlane(floorPlane, hit)) return null;
+      if (Math.abs(hit.x) > CONFIG.halfWidth || Math.abs(hit.z) > CONFIG.halfDepth) return null;
+      return { x: hit.x, z: hit.z };
+    },
+    // The obstacle under the pointer (its id), or null.
+    obstacleAt(clientX, clientY) {
+      const hits = rayFrom(clientX, clientY) && raycaster.intersectObjects([...obstacleMeshes.values()], false);
+      return hits.length ? hits[0].object.userData.obstacleId : null;
+    },
+    // Shows the placement preview (kind 'boulder', 'column' or 'remove'); null hides it.
+    setGhost(ghost) {
+      Object.values(ghosts).forEach(g => { g.visible = false; });
+      if (!ghost) return;
+      const mesh = ghosts[ghost.kind];
+      ghostMaterial.color.set(ghost.ok ? '#2f9e6a' : '#d6404e');
+      if (ghost.kind === 'column') { mesh.position.set(ghost.x, 0, ghost.z); mesh.scale.set(ghost.r, height, ghost.r); }
+      else if (ghost.kind === 'boulder') { mesh.position.set(ghost.x, ghost.r * CONFIG.boulderLift, ghost.z); mesh.scale.setScalar(ghost.r); }
+      else { mesh.position.set(ghost.x, 0.05, ghost.z); mesh.scale.setScalar(ghost.r); }
+      mesh.visible = true;
     },
     ripple(x, z) { ripple.position.set(x, height + 0.02, z); rippleStart = performance.now(); },
     project(x, y, z) {

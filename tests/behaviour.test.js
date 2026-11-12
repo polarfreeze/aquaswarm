@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Simulation, CONFIG, CHALLENGE, STATE, PREDATOR_MODE, randomGenerator } from '../src/simulation.js';
+import { Simulation, CONFIG, CHALLENGE, CHALLENGE_LAYOUT, STATE, PREDATOR_MODE, randomGenerator } from '../src/simulation.js';
 
 const run = (sim, seconds, each) => { for (let i = 0; i < Math.round(seconds * 60); i++) { sim.step(); each?.(sim); } };
 const fishAt = (id, x, y, z, vx = 2, vy = 0, vz = 0, state = STATE.cruise, stateTime = 0) =>
@@ -173,9 +173,10 @@ test('session counters record each switch into flee and feed', () => {
 });
 
 test('the feeding challenge is winnable with good food placement and lost without it', () => {
-  // Same rules as the in-app challenge: hunting predator, food dropped every 4 s, fixed seed.
+  // Same rules as the in-app challenge: rock layout, hunting predator, food dropped every 4 s, fixed seed.
   const play = place => {
     const sim = new Simulation();
+    for (const [kind, x, z] of CHALLENGE_LAYOUT) sim.addObstacle(kind, x, z);
     sim.setPredator(true);
     for (let t = 0; t < CHALLENGE.seconds * 60; t++) {
       if (t % 240 === 0) place(sim, t);
@@ -184,12 +185,13 @@ test('the feeding challenge is winnable with good food placement and lost withou
     }
     return null;
   };
-  // Good: near the school's centre, pushed away from the predator.
+  // Good: behind the obstacle nearest the school, on the side away from the predator.
   const good = play(sim => {
     const n = sim.fish.length, p = sim.predator;
     const cx = sim.fish.reduce((a, f) => a + f.x / n, 0), cz = sim.fish.reduce((a, f) => a + f.z / n, 0);
-    const d = Math.hypot(cx - p.x, cz - p.z) || 1;
-    sim.addFood(cx + (cx - p.x) / d * 4, cz + (cz - p.z) / d * 4);
+    const o = sim.obstacles.reduce((a, b) => Math.hypot(a.x - cx, a.z - cz) < Math.hypot(b.x - cx, b.z - cz) ? a : b);
+    const d = Math.hypot(o.x - p.x, o.z - p.z) || 1;
+    sim.addFood(o.x + (o.x - p.x) / d * (o.r + 2.5), o.z + (o.z - p.z) / d * (o.r + 2.5));
   });
   // Poor: anywhere in the tank, ignoring where the school and the predator are (seeded).
   const random = randomGenerator(11);

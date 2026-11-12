@@ -1,0 +1,205 @@
+{
+  "seed": 549,
+  "fish": 100,
+  "seconds": 60,
+  "layout": [
+    {
+      "kind": "boulder",
+      "x": -10,
+      "z": 3,
+      "r": 4
+    },
+    {
+      "kind": "column",
+      "x": 0,
+      "z": -4,
+      "r": 1.6
+    },
+    {
+      "kind": "column",
+      "x": 8,
+      "z": 6,
+      "r": 1.6
+    },
+    {
+      "kind": "boulder",
+      "x": 13,
+      "z": -6,
+      "r": 4
+    }
+  ],
+  "body": {
+    "front": 0.5,
+    "back": -0.7,
+    "radius": 0.22
+  },
+  "definitions": {
+    "touching": "fish centre within body radius + 0.2 u of an obstacle surface",
+    "largestStepMove": "largest distance any fish moved in one 1/60 s step"
+  },
+  "caveat": "One seed and one layout. Timings are from this laptop in Node, not the browser.",
+  "results": [
+    {
+      "situation": "cruise",
+      "avoidance": true,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 29,
+      "deepestCorrected": 0.017,
+      "meanFishTouching": 0.004,
+      "longestContactSeconds": 0.217,
+      "largestStepMove": 0.097,
+      "statesSeen": [
+        "cruise"
+      ],
+      "msPerStep": 0.154
+    },
+    {
+      "situation": "cruise",
+      "avoidance": false,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 4040,
+      "deepestCorrected": 0.129,
+      "meanFishTouching": 2.684,
+      "longestContactSeconds": 3.917,
+      "largestStepMove": 0.106,
+      "statesSeen": [
+        "cruise"
+      ],
+      "msPerStep": 0.164
+    },
+    {
+      "situation": "food on a boulder",
+      "avoidance": true,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 31,
+      "deepestCorrected": 0.023,
+      "meanFishTouching": 0.004,
+      "longestContactSeconds": 0.217,
+      "largestStepMove": 0.329,
+      "statesSeen": [
+        "cruise",
+        "feed"
+      ],
+      "msPerStep": 0.266
+    },
+    {
+      "situation": "food on a boulder",
+      "avoidance": false,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 1761,
+      "deepestCorrected": 0.076,
+      "meanFishTouching": 1.306,
+      "longestContactSeconds": 4.083,
+      "largestStepMove": 0.242,
+      "statesSeen": [
+        "cruise",
+        "feed"
+      ],
+      "msPerStep": 0.358
+    },
+    {
+      "situation": "food beside columns",
+      "avoidance": true,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 259,
+      "deepestCorrected": 0.228,
+      "meanFishTouching": 0.285,
+      "longestContactSeconds": 3.233,
+      "largestStepMove": 0.259,
+      "statesSeen": [
+        "cruise",
+        "feed"
+      ],
+      "msPerStep": 0.342
+    },
+    {
+      "situation": "food beside columns",
+      "avoidance": false,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 5987,
+      "deepestCorrected": 0.386,
+      "meanFishTouching": 3.767,
+      "longestContactSeconds": 9.517,
+      "largestStepMove": 0.337,
+      "statesSeen": [
+        "cruise",
+        "feed"
+      ],
+      "msPerStep": 0.325
+    },
+    {
+      "situation": "food + predator",
+      "avoidance": true,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 288,
+      "deepestCorrected": 0.332,
+      "meanFishTouching": 0.214,
+      "longestContactSeconds": 3.183,
+      "largestStepMove": 0.384,
+      "statesSeen": [
+        "cruise",
+        "feed",
+        "flee"
+      ],
+      "msPerStep": 0.396
+    },
+    {
+      "situation": "food + predator",
+      "avoidance": false,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 5549,
+      "deepestCorrected": 0.308,
+      "meanFishTouching": 3.628,
+      "longestContactSeconds": 8.317,
+      "largestStepMove": 0.292,
+      "statesSeen": [
+        "cruise",
+        "feed",
+        "flee"
+      ],
+      "msPerStep": 0.312
+    },
+    {
+      "situation": "separation off, food",
+      "avoidance": true,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 23,
+      "deepestCorrected": 0.035,
+      "meanFishTouching": 0.004,
+      "longestContactSeconds": 0.167,
+      "largestStepMove": 0.315,
+      "statesSeen": [
+        "cruise",
+        "feed"
+      ],
+      "msPerStep": 0.657
+    },
+    {
+      "situation": "separation off, food",
+      "avoidance": false,
+      "deepestOverlapAfterStep": 0,
+      "pushOutCorrections": 1794,
+      "deepestCorrected": 0.294,
+      "meanFishTouching": 0.908,
+      "longestContactSeconds": 4.183,
+      "largestStepMove": 0.382,
+      "statesSeen": [
+        "cruise",
+        "feed"
+      ],
+      "msPerStep": 0.548
+    }
+  ],
+  "stepCost": [
+    {
+      "fish": 100,
+      "msPerStepEmpty": 0.142,
+      "msPerStepFourObstacles": 0.179
+    },
+    {
+      "fish": 1000,
+      "msPerStepEmpty": 11.114,
+      "msPerStepFourObstacles": 11.06
+    }
+  ]
+}

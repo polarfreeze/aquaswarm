@@ -24,11 +24,26 @@ export const CONFIG = Object.freeze({
   // It is slower than a fleeing fish and never eats; its job is to scatter the school.
   predatorSense: 18, predatorHuntSpeed: 4.3, predatorPatrolSpeed: 2.2, predatorAcceleration: 4.5,
   predatorHunt: 6, predatorRest: 5, predatorMargin: 2.4,
+  // Predator body for obstacles, like the fish body below but for the larger model.
+  predatorFront: 1.8, predatorBack: -1.6, predatorRadius: 0.5,
+  // Obstacles: boulders (spheres half-buried in the sand, centre at `boulderLift` x radius) and coral
+  // columns (vertical cylinders through the full water depth). Every obstacle keeps `obstacleGap`
+  // of open water to the walls and to other obstacles, so no layout can seal a passage.
+  maxObstacles: 6, boulderRadius: 4, boulderLift: 0.35, columnRadius: 1.6, obstacleGap: 3.2,
+  // Look-ahead avoidance: a fish checks the water ahead for `avoidLookahead` s of travel and steers
+  // sideways off any obstacle within `avoidMargin` of its path, in every behaviour state.
+  avoidLookahead: 1.1, avoidMargin: 0.9, avoidWeight: 3.4,
+  // Cover: an obstacle between a fish and the predator blocks sight both ways, except closer than
+  // `coverSense`, where fish still feel the predator's wake.
+  coverSense: 4,
 });
+export const OBSTACLE_KINDS = Object.freeze(['boulder', 'column']);
 // Feeding challenge: the school must eat this many meals (one meal = one full pellet) before time
 // runs out. Tuned with seeded bot runs (npm run balance): food dropped at random never reaches it in
 // 90 s; food dropped near the school and away from the predator wins in about 55–90 s.
 export const CHALLENGE = Object.freeze({ meals: 11, seconds: 90 });
+// Challenge tank: two boulders and two coral columns the school can hide behind.
+export const CHALLENGE_LAYOUT = Object.freeze([['boulder', -11, -5], ['boulder', 12, 5], ['column', -2, 7], ['column', 4, -7]]);
 export const DEFAULT_WEIGHTS = Object.freeze({ separation: 2.4, alignment: 1.1, cohesion: 0.55 });
 export const RULES = Object.freeze(Object.keys(DEFAULT_WEIGHTS));
 export const STATE = Object.freeze({ cruise: 0, feed: 1, flee: 2 });
@@ -164,6 +179,101 @@ function resolveContacts(fish, pairs, pairCount) {
   }
 }
 
+// Look-ahead obstacle avoidance (a Reynolds-style feeler, one test per obstacle). A centre that lies
+// close to the line of travel and within reach ahead pushes the agent sideways, harder the nearer it
+// is; an agent already near a surface is also pushed straight out. Columns are handled in plan view.
+function obstacleAvoidance(x, y, z, vx, vy, vz, obstacles, bodyRadius, maxForce) {
+  let fx = 0, fy = 0, fz = 0;
+  const speed = len(vx, vy, vz);
+  const reach = CONFIG.avoidLookahead * speed + bodyRadius + 1;
+  for (const o of obstacles) {
+    const column = o.kind === 'column';
+    const dx = o.x - x, dy = column ? 0 : o.y - y, dz = o.z - z;
+    const distance = len(dx, dy, dz);
+    if (distance < 1e-9) continue;
+    const clearance = o.r + bodyRadius + CONFIG.avoidMargin;
+    const gap = distance - o.r - bodyRadius;
+    if (gap < CONFIG.avoidMargin) {
+      const push = (1 - Math.max(0, gap) / CONFIG.avoidMargin) * maxForce * 2;
+      fx -= dx / distance * push; fy -= dy / distance * push; fz -= dz / distance * push;
+    }
+    let ux = vx, uy = column ? 0 : vy, uz = vz;
+    const along = len(ux, uy, uz);
+    if (along < 0.2) continue;
+    ux /= along; uy /= along; uz /= along;
+    const t = dx * ux + dy * uy + dz * uz;
+    if (t <= 0 || t - o.r > reach) continue;
+    let lx = dx - ux * t, ly = dy - uy * t, lz = dz - uz * t;
+    let lateral = len(lx, ly, lz);
+    if (lateral >= clearance) continue;
+    if (lateral < 1e-6) { lx = -uz; ly = 0; lz = ux; lateral = len(lx, ly, lz) || 1; } // dead ahead: veer to one fixed side
+    const urgency = (1 - Math.max(0, t - o.r) / reach) * (1 - lateral / clearance);
+    const strength = maxForce * CONFIG.avoidWeight * (0.4 + urgency);
+    fx -= lx / lateral * strength; fy -= ly / lateral * strength; fz -= lz / lateral * strength;
+  }
+  out[0] = fx; out[1] = fy; out[2] = fz;
+  return out;
+}
+
+// Hard constraint behind the avoidance: a body (segment along the heading from `back` to `front`,
+// with `radius`) that ended a step inside an obstacle is moved out along the surface normal and
+// loses its inward speed, keeping at least `minSpeed` by sliding along the surface. Returns the
+// depth it had to correct (0 when the body was clear).
+function pushOutOfObstacles(agent, obstacles, back, front, radius, minSpeed) {
+  let deepest = 0;
+  for (const o of obstacles) {
+    const column = o.kind === 'column';
+    const speed = len(agent.vx, agent.vy, agent.vz) || 1;
+    const hx = agent.vx / speed, hy = agent.vy / speed, hz = agent.vz / speed;
+    // Closest point of the body segment to the obstacle centre (columns: to its axis, in plan view).
+    const wx = agent.x - o.x, wy = column ? 0 : agent.y - o.y, wz = agent.z - o.z;
+    const sx = hx, sy = column ? 0 : hy, sz = hz;
+    const s2 = sx * sx + sy * sy + sz * sz;
+    const t = s2 > 1e-9 ? Math.min(front, Math.max(back, -(wx * sx + wy * sy + wz * sz) / s2)) : 0;
+    let nx = wx + sx * t, ny = wy + sy * t, nz = wz + sz * t;
+    const distance = len(nx, ny, nz);
+    const depth = o.r + radius - distance;
+    if (depth <= 0) continue;
+    if (distance > 1e-9) { nx /= distance; ny /= distance; nz /= distance; } else { nx = 1; ny = 0; nz = 0; }
+    agent.x += nx * depth; agent.y += ny * depth; agent.z += nz * depth;
+    const inward = agent.vx * nx + agent.vy * ny + agent.vz * nz;
+    if (inward < 0) {
+      let vx = agent.vx - nx * inward, vy = agent.vy - ny * inward, vz = agent.vz - nz * inward;
+      let slide = len(vx, vy, vz);
+      if (slide < 1e-6) { vx = -nz; vy = 0; vz = nx; slide = len(vx, vy, vz) || 1; }
+      const keep = Math.max(minSpeed, slide) / slide;
+      agent.vx = vx * keep; agent.vy = vy * keep; agent.vz = vz * keep;
+    }
+    deepest = Math.max(deepest, depth);
+  }
+  return deepest;
+}
+
+// True when an obstacle blocks the straight line from a to b (sight lines for cover). The test uses
+// 85% of the radius, so a line that only grazes an obstacle's edge still counts as seen.
+export function lineBlocked(ax, ay, az, bx, by, bz, obstacles) {
+  for (const o of obstacles) {
+    const column = o.kind === 'column', r = o.r * 0.85;
+    const dx = bx - ax, dy = column ? 0 : by - ay, dz = bz - az;
+    const wx = o.x - ax, wy = column ? 0 : o.y - ay, wz = o.z - az;
+    const d2 = dx * dx + dy * dy + dz * dz;
+    const t = d2 > 1e-9 ? Math.min(1, Math.max(0, (wx * dx + wy * dy + wz * dz) / d2)) : 0;
+    if (len(wx - dx * t, wy - dy * t, wz - dz * t) < r) return true;
+  }
+  return false;
+}
+
+// Height at which a sinking pellet comes to rest: the sand, or the top of a boulder below it.
+function restingHeight(x, z, obstacles) {
+  let floor = CONFIG.foodFloor;
+  for (const o of obstacles) {
+    if (o.kind !== 'boulder') continue;
+    const d2 = (x - o.x) ** 2 + (z - o.z) ** 2;
+    if (d2 < o.r * o.r) floor = Math.max(floor, o.y + Math.sqrt(o.r * o.r - d2) * 0.95 + 0.3); // on the drawn rock
+  }
+  return floor;
+}
+
 // Initial fish i always uses the same five draws of one seeded stream, so fish 0–99 start
 // identically whether the population is 100 or 2000.
 function spawnFish(seed, from, to) {
@@ -224,6 +334,7 @@ export class Simulation {
     this.weights = { ...DEFAULT_WEIGHTS };
     this.enabled = Object.fromEntries(RULES.map(rule => [rule, true]));
     this.collisions = true;
+    this.avoidance = true;
     this.paused = false;
     this.time = 0;
     this.count = this.initialCount;
@@ -233,8 +344,12 @@ export class Simulation {
     this.foodEaten = 0;
     this.predator = null;
     this.predatorRandom = randomGenerator(this.seed ^ 0x5eed);
+    this.obstacles = [];
+    this.nextObstacleId = 0;
     // Session counters for the end-of-session summary.
     this.stats = { fleeStarts: 0, feedStarts: 0 };
+    // How many times a fish body ended a step inside an obstacle despite avoidance, and how deep.
+    this.obstacleStats = { corrections: 0, deepest: 0 };
   }
 
   setWeight(rule, value) {
@@ -247,12 +362,18 @@ export class Simulation {
   }
 
   setCollisions(enabled) { this.collisions = Boolean(enabled); }
+  // Off: fish swim straight at obstacles and only the push-out keeps them outside (for comparison).
+  setAvoidance(enabled) { this.avoidance = Boolean(enabled); }
 
   // Grows by appending seeded fish (existing fish keep their state) or shrinks from the end.
   setCount(count) {
     if (!Number.isFinite(count)) return;
     count = Math.round(Math.max(CONFIG.minCount, Math.min(CONFIG.maxCount, count)));
-    if (count > this.fish.length) this.fish = this.fish.concat(spawnFish(this.seed, this.fish.length, count));
+    if (count > this.fish.length) {
+      const added = spawnFish(this.seed, this.fish.length, count);
+      for (const f of added) pushOutOfObstacles(f, this.obstacles, CONFIG.bodyBack, CONFIG.bodyFront, CONFIG.bodyRadius, CONFIG.minSpeed);
+      this.fish = this.fish.concat(added);
+    }
     else this.fish = this.fish.slice(0, count);
     this.count = count;
   }
@@ -265,12 +386,64 @@ export class Simulation {
       y: Math.max(CONFIG.foodFloor, Math.min(CONFIG.height - 0.6, y)),
       z: Math.max(-CONFIG.halfDepth + 1, Math.min(CONFIG.halfDepth - 1, z)),
       amount: CONFIG.foodAmount, age: 0 };
+    const placed = this.#placePellet(pellet);
     if (this.food.length >= CONFIG.maxFood) this.food = this.food.slice(1);
-    this.food = [...this.food, pellet];
-    return pellet;
+    this.food = [...this.food, placed];
+    return placed;
   }
 
   clearFood() { this.food = []; }
+
+  // Why an obstacle cannot go at (x, z), or '' when it can. Each obstacle keeps a gap of open water
+  // to the walls and to the others, so the school can always get around it.
+  placementProblem(kind, x, z) {
+    if (!OBSTACLE_KINDS.includes(kind) || !Number.isFinite(x) || !Number.isFinite(z)) return 'Unknown obstacle';
+    if (this.obstacles.length >= CONFIG.maxObstacles) return `At most ${CONFIG.maxObstacles} obstacles`;
+    const r = kind === 'boulder' ? CONFIG.boulderRadius : CONFIG.columnRadius;
+    if (Math.abs(x) + r + CONFIG.obstacleGap > CONFIG.halfWidth || Math.abs(z) + r + CONFIG.obstacleGap > CONFIG.halfDepth)
+      return 'Too close to the glass: fish need room to pass';
+    for (const o of this.obstacles)
+      if (Math.hypot(x - o.x, z - o.z) < r + o.r + CONFIG.obstacleGap) return 'Too close to another obstacle: fish need room to pass';
+    return '';
+  }
+
+  // Adds a boulder or coral column; fish and pellets already inside it are moved out at once.
+  addObstacle(kind, x, z) {
+    if (this.placementProblem(kind, x, z)) return null;
+    const r = kind === 'boulder' ? CONFIG.boulderRadius : CONFIG.columnRadius;
+    const obstacle = { id: this.nextObstacleId++, kind, x, y: kind === 'boulder' ? r * CONFIG.boulderLift : CONFIG.height / 2, z, r };
+    this.obstacles = [...this.obstacles, obstacle];
+    for (const f of this.fish) pushOutOfObstacles(f, [obstacle], CONFIG.bodyBack, CONFIG.bodyFront, CONFIG.bodyRadius, CONFIG.minSpeed);
+    if (this.predator) pushOutOfObstacles(this.predator, [obstacle], CONFIG.predatorBack, CONFIG.predatorFront, CONFIG.predatorRadius, 1);
+    this.food = this.food.map(pellet => this.#placePellet(pellet));
+    return obstacle;
+  }
+
+  // Removes the obstacle under (x, z) in plan view, if any.
+  removeObstacleAt(x, z) {
+    const hit = this.obstacles.find(o => Math.hypot(x - o.x, z - o.z) < o.r + 0.5);
+    if (hit) this.obstacles = this.obstacles.filter(o => o !== hit);
+    return hit ?? null;
+  }
+
+  removeObstacle(id) {
+    const hit = this.obstacles.find(o => o.id === id);
+    if (hit) this.obstacles = this.obstacles.filter(o => o !== hit);
+    return hit ?? null;
+  }
+
+  clearObstacles() { this.obstacles = []; }
+
+  // A pellet never sits inside an obstacle: it is moved to the edge of a column and rests on boulders.
+  #placePellet(pellet) {
+    let { x, z } = pellet;
+    for (const o of this.obstacles) {
+      if (o.kind !== 'column') continue;
+      const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz), clear = o.r + 1.2;
+      if (d < clear) { const k = d > 1e-9 ? clear / d : 0; x = o.x + (d > 1e-9 ? dx * k : clear); z = o.z + dz * k; }
+    }
+    return { ...pellet, x, z, y: Math.max(pellet.y, restingHeight(x, z, this.obstacles)) };
+  }
 
   setPredator(enabled) {
     if (!enabled) { this.predator = null; return; }
@@ -283,7 +456,7 @@ export class Simulation {
   step(dt = CONFIG.step) {
     if (this.paused || !Number.isFinite(dt) || dt <= 0) return;
     dt = Math.min(dt, CONFIG.step);
-    const fish = this.fish, food = this.food, predator = this.predator;
+    const fish = this.fish, food = this.food, predator = this.predator, obstacles = this.obstacles;
     const perception2 = CONFIG.perception ** 2, separation2 = CONFIG.separationRadius ** 2;
     // Pairs that may touch after this step: origins closer than both body reaches, the contact
     // distance and the most two fish can close in one step. Each pair is stored once (i < j).
@@ -332,7 +505,10 @@ export class Simulation {
           }
 
       // Behaviour state: flee > feed > cruise, each with hysteresis.
-      const predatorDistance = predator ? len(f.x - predator.x, f.y - predator.y, f.z - predator.z) : Infinity;
+      let predatorDistance = predator ? len(f.x - predator.x, f.y - predator.y, f.z - predator.z) : Infinity;
+      // A fish behind cover cannot see the predator (only checked when it would matter).
+      if (obstacles.length && predatorDistance < CONFIG.fleeExit && predatorDistance > CONFIG.coverSense
+        && lineBlocked(f.x, f.y, f.z, predator.x, predator.y, predator.z, obstacles)) predatorDistance = Infinity;
       let foodIndex = -1, foodDistance = Infinity;
       for (let k = 0; k < food.length; k++) {
         const d = len(f.x - food[k].x, f.y - food[k].y, f.z - food[k].z);
@@ -382,6 +558,7 @@ export class Simulation {
         fx += f.vx * thrust; fy += f.vy * thrust; fz += f.vz * thrust;
       }
       add(wallForce(f.x, f.y, f.z, f.vx, f.vy, f.vz, 3), 1);
+      if (obstacles.length && this.avoidance) add(obstacleAvoidance(f.x, f.y, f.z, f.vx, f.vy, f.vz, obstacles, CONFIG.bodyRadius, CONFIG.maxForce), 1);
       const [lx, ly, lz] = limit(fx, fy, fz, maxAcceleration);
       let [vx, vy, vz] = clampSpeed(f.vx + lx * dt, f.vy + ly * dt, f.vz + lz * dt,
         len(f.vx, f.vy, f.vz), maxSpeed, CONFIG.minSpeed, dt, f.id * 2.39996);
@@ -394,6 +571,10 @@ export class Simulation {
     }
 
     if (pairCount) resolveContacts(next, pairs, pairCount);
+    if (obstacles.length) for (const f of next) {
+      const depth = pushOutOfObstacles(f, obstacles, CONFIG.bodyBack, CONFIG.bodyFront, CONFIG.bodyRadius, CONFIG.minSpeed);
+      if (depth > 0) { this.obstacleStats.corrections++; this.obstacleStats.deepest = Math.max(this.obstacleStats.deepest, depth); }
+    }
 
     // The predator also reads the old frame, so update order does not matter.
     const nextPredator = predator ? this.#stepPredator(predator, fish, dt) : null;
@@ -407,7 +588,7 @@ export class Simulation {
       this.foodEaten += Math.min(pellet.amount, bite);
       const age = pellet.age + dt;
       if (amount > 0 && age < CONFIG.foodLifetime)
-        remaining.push({ ...pellet, amount, age, y: Math.max(CONFIG.foodFloor, pellet.y - CONFIG.foodSinkSpeed * dt) });
+        remaining.push({ ...pellet, amount, age, y: Math.max(restingHeight(pellet.x, pellet.z, obstacles), pellet.y - CONFIG.foodSinkSpeed * dt) });
     });
     this.food = remaining;
     this.time += dt;
@@ -416,15 +597,19 @@ export class Simulation {
   #stepPredator(p, fish, dt) {
     let mode = p.mode, modeTime = p.modeTime + dt, { wx, wy, wz } = p;
     const pickWaypoint = () => {
+      // Patrol waypoints are drawn until one lies in open water (a few tries; obstacles cover little).
       const r = this.predatorRandom;
-      wx = (r() - 0.5) * (CONFIG.halfWidth * 2 - 10); wy = 4 + r() * (CONFIG.height - 8); wz = (r() - 0.5) * (CONFIG.halfDepth * 2 - 10);
+      for (let attempt = 0; attempt < 8; attempt++) {
+        wx = (r() - 0.5) * (CONFIG.halfWidth * 2 - 10); wy = 4 + r() * (CONFIG.height - 8); wz = (r() - 0.5) * (CONFIG.halfDepth * 2 - 10);
+        if (this.obstacles.every(o => len(wx - o.x, o.kind === 'column' ? 0 : wy - o.y, wz - o.z) > o.r + 3)) break;
+      }
     };
     if (mode === PREDATOR_MODE.hunt && modeTime > CONFIG.predatorHunt) { mode = PREDATOR_MODE.rest; modeTime = 0; pickWaypoint(); }
     else if (mode === PREDATOR_MODE.rest && modeTime > CONFIG.predatorRest) { mode = PREDATOR_MODE.hunt; modeTime = 0; }
     let target = -1, best = CONFIG.predatorSense;
     if (mode === PREDATOR_MODE.hunt) for (const f of fish) {
       const d = len(f.x - p.x, f.y - p.y, f.z - p.z);
-      if (d < best) { best = d; target = f.id; }
+      if (d < best && (d <= CONFIG.coverSense || !this.obstacles.length || !lineBlocked(p.x, p.y, p.z, f.x, f.y, f.z, this.obstacles))) { best = d; target = f.id; }
     }
     let fx = 0, fy = 0, fz = 0, speed = CONFIG.predatorPatrolSpeed;
     const prey = target >= 0 ? fish.find(f => f.id === target) : null;
@@ -438,6 +623,10 @@ export class Simulation {
     }
     const [bx, by, bz] = wallForce(p.x, p.y, p.z, p.vx, p.vy, p.vz, CONFIG.predatorMargin + 2);
     fx += bx; fy += by; fz += bz;
+    if (this.obstacles.length) {
+      const [ox, oy, oz] = obstacleAvoidance(p.x, p.y, p.z, p.vx, p.vy, p.vz, this.obstacles, CONFIG.predatorRadius, CONFIG.predatorAcceleration);
+      fx += ox; fy += oy; fz += oz;
+    }
     const [lx, ly, lz] = limit(fx, fy, fz, CONFIG.predatorAcceleration * 1.5);
     let [vx, vy, vz] = clampSpeed(p.vx + lx * dt, p.vy + ly * dt, p.vz + lz * dt,
       len(p.vx, p.vy, p.vz), speed, 1, dt, 0);
@@ -447,7 +636,9 @@ export class Simulation {
     if (y < m) { y = m; vy = Math.abs(vy); }
     if (y > CONFIG.height - m) { y = CONFIG.height - m; vy = -Math.abs(vy); }
     if (Math.abs(z) > CONFIG.halfDepth - m) { z = Math.sign(z) * (CONFIG.halfDepth - m); vz = -Math.sign(z) * Math.abs(vz); }
-    return { x, y, z, vx, vy, vz, mode, modeTime, target, wx, wy, wz };
+    const next = { x, y, z, vx, vy, vz, mode, modeTime, target, wx, wy, wz };
+    if (this.obstacles.length) pushOutOfObstacles(next, this.obstacles, CONFIG.predatorBack, CONFIG.predatorFront, CONFIG.predatorRadius, 1);
+    return next;
   }
 
   stateCounts() {

@@ -60,6 +60,10 @@ h1 { font-size: clamp(22px, 2.3vw, 33px); font-weight: 600; line-height: 1.1; le
 :is(.toolbar, .view-tools) button.selected { background: #fff; color: #1d4a3b; box-shadow: 0 1px 5px #163e3617; }
 .toolbar .danger.selected { background: var(--danger); color: #fff; }
 .toolbar button:disabled { opacity: 1; cursor: default; }
+.toolbar #clear-obstacles:disabled { opacity: .45; }
+.click-tools { display: flex; gap: 2px; padding-right: 4px; margin-right: 2px; border-right: 1px solid #d5e3da; }
+.click-tools[hidden], .toolbar [hidden] { display: none; }
+.toolbar .tool-option[aria-checked="true"] { background: #fff; color: #1d4a3b; box-shadow: 0 1px 5px #163e3617; }
 
 /* Challenge HUD */
 .hud { position: absolute; z-index: 3; top: 104px; left: 50%; transform: translateX(-50%); display: flex; gap: 22px; align-items: center;
@@ -194,8 +198,8 @@ footer { height: 34px; padding: 0 26px; display: flex; align-items: center; just
 @media (max-width: 1250px) {
   .masthead-meta { display: none; }
   .toolbar button, .view-tools button { padding: 7px 8px; }
-  #clear-food { font-size: 0; gap: 0; }
-  #clear-food svg { width: 16px; height: 16px; }
+  :is(#clear-food, #clear-obstacles, .tool-option) { font-size: 0; gap: 0; }
+  :is(#clear-food, #clear-obstacles, .tool-option) svg { width: 16px; height: 16px; }
 }
 @media (max-width: 1050px) {
   main { grid-template-columns: minmax(0, 1fr) 290px; }

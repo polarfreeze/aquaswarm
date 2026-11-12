@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const snapshot = page => page.evaluate(() => window.aquaswarmSnapshot());
 const surface = (page, x, z) => page.evaluate(([x, z]) => window.aquaswarmProjectPoint(x, 18, z), [x, z]);
+const sand = (page, x, z) => page.evaluate(([x, z]) => window.aquaswarmProjectPoint(x, 0, z), [x, z]);
 async function open(page, mode) {
   await page.goto('/?test');
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -147,9 +148,13 @@ test('feeding challenge: HUD, win screen, best time, play again and time-out los
   await expect(page.locator('#hud')).toBeVisible();
   await expect(page.locator('#tabs')).toBeHidden();
   await expect(page.locator('#predator')).toBeDisabled();
+  // The challenge tank has its fixed rocks, and the lab's obstacle tools are hidden.
+  expect(s.obstacles.map(o => o.kind)).toEqual(['boulder', 'boulder', 'column', 'column']);
+  await expect(page.locator('#click-tools')).toBeHidden();
+  await expect(page.locator('#clear-obstacles')).toBeHidden();
   // Play like a person: every 4 simulated seconds (one pellet lasts about 12 s and at most 3 exist),
-  // drop food just in front of the school, away from the predator. This wins about 4 runs in 5 (the
-  // predator sometimes keeps scattering the school), so a lost run is retried with Play again.
+  // drop food behind the rock nearest the school, on the side away from the predator. Bots playing
+  // this way win most but not all runs, so a lost run is retried with Play again.
   for (let attempt = 1; ; attempt++) {
     let lastDrop = -4;
     while ((await snapshot(page)).game.phase === 'active') {
@@ -157,8 +162,9 @@ test('feeding challenge: HUD, win screen, best time, play again and time-out los
       if (s.time - lastDrop >= 4) {
         lastDrop = s.time;
         const n = s.fish.length, cx = s.fish.reduce((a, f) => a + f.x / n, 0), cz = s.fish.reduce((a, f) => a + f.z / n, 0);
-        const d = Math.hypot(cx - s.predator.x, cz - s.predator.z) || 1;
-        const p = await surface(page, cx + (cx - s.predator.x) / d * 4, cz + (cz - s.predator.z) / d * 4);
+        const o = s.obstacles.reduce((a, b) => Math.hypot(a.x - cx, a.z - cz) < Math.hypot(b.x - cx, b.z - cz) ? a : b);
+        const d = Math.hypot(o.x - s.predator.x, o.z - s.predator.z) || 1;
+        const p = await surface(page, o.x + (o.x - s.predator.x) / d * (o.r + 2.5), o.z + (o.z - s.predator.z) / d * (o.r + 2.5));
         await page.mouse.click(p.x, p.y);
       }
       await page.waitForTimeout(250);
@@ -182,6 +188,71 @@ test('feeding challenge: HUD, win screen, best time, play again and time-out los
   expect(s.game.result).toBe('timeout'); expect(s.time).toBeGreaterThanOrEqual(90);
   await expect(page.getByRole('dialog')).toContainText('Time\'s up');
   await expect(page.locator('#hud-time')).toHaveText('0:00');
+  expect(errors).toEqual([]);
+});
+
+test('obstacles: place with preview, reject blocked spots, remove, clear, keep on restart, course scenario', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await open(page, 'explore');
+  await page.getByRole('button', { name: 'Top view' }).click();
+  await page.waitForTimeout(600);
+  // Boulder tool (button), then a click on open sand places one.
+  await page.getByRole('radio', { name: 'Boulder' }).click();
+  expect((await snapshot(page)).tool).toBe('boulder');
+  await expect(page.locator('#tool-hint')).toContainText('place a boulder');
+  let p = await sand(page, -8, 0);
+  await page.mouse.click(p.x, p.y);
+  await expect.poll(async () => (await snapshot(page)).obstacles.length).toBe(1);
+  let s = await snapshot(page);
+  expect(s.obstacles[0]).toMatchObject({ kind: 'boulder' });
+  expect(Math.hypot(s.obstacles[0].x + 8, s.obstacles[0].z)).toBeLessThan(0.6);
+  // Coral by keyboard; too close to the boulder or the glass is refused with a reason.
+  await page.keyboard.press('KeyO');
+  expect((await snapshot(page)).tool).toBe('column');
+  p = await sand(page, -3, 0);
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator('#toast')).toContainText('Too close to another obstacle');
+  p = await sand(page, 22, 0);
+  await page.mouse.click(p.x, p.y);
+  await expect(page.locator('#toast')).toContainText('Too close to the glass');
+  p = await sand(page, 8, 2);
+  await page.mouse.click(p.x, p.y);
+  await expect.poll(async () => (await snapshot(page)).obstacles.length).toBe(2);
+  // The school keeps swimming around them; no fish ends a step inside one.
+  await page.waitForTimeout(3000);
+  s = await snapshot(page);
+  expect(s.obstacleStats.deepest).toBeLessThan(0.3);
+  for (const f of s.fish) for (const o of s.obstacles)
+    expect(Math.hypot(f.x - o.x, o.kind === 'column' ? 0 : f.y - o.y, f.z - o.z)).toBeGreaterThan(o.r);
+  // Restart keeps the lab's rocks; Remove takes one out; Clear rocks empties the tank.
+  await page.keyboard.press('KeyR');
+  await expect.poll(async () => (await snapshot(page)).time).toBeGreaterThan(0.3);
+  expect((await snapshot(page)).obstacles).toHaveLength(2);
+  await page.keyboard.press('KeyX');
+  s = await snapshot(page);
+  const column = s.obstacles.find(o => o.kind === 'column');
+  p = await page.evaluate(([x, z]) => window.aquaswarmProjectPoint(x, 17, z), [column.x, column.z]);
+  await page.mouse.click(p.x, p.y);
+  await expect.poll(async () => (await snapshot(page)).obstacles.map(o => o.kind)).toEqual(['boulder']);
+  await page.getByRole('button', { name: 'Clear rocks' }).click();
+  expect((await snapshot(page)).obstacles).toHaveLength(0);
+  await expect(page.getByRole('button', { name: 'Clear rocks' })).toBeDisabled();
+  // Food tool again drops pellets; the obstacle course scenario sets up its own tank.
+  await page.keyboard.press('KeyF');
+  p = await surface(page, 0, 0);
+  await page.mouse.click(p.x, p.y);
+  await expect.poll(async () => (await snapshot(page)).food.length).toBe(1);
+  await page.getByRole('tab', { name: 'Scenarios' }).click();
+  await page.getByRole('button', { name: /Obstacle course/ }).click();
+  s = await snapshot(page);
+  expect(s.obstacles).toHaveLength(5); expect(s.predator).not.toBeNull(); expect(s.food).toHaveLength(3);
+  // Avoidance switch on the Rules tab.
+  await page.getByRole('tab', { name: 'Rules' }).click();
+  await page.getByRole('checkbox', { name: 'Obstacle avoidance' }).uncheck();
+  expect((await snapshot(page)).avoidance).toBe(false);
+  await page.getByRole('checkbox', { name: 'Obstacle avoidance' }).check();
+  expect((await snapshot(page)).avoidance).toBe(true);
   expect(errors).toEqual([]);
 });
 

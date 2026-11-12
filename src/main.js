@@ -1,5 +1,5 @@
 import './style.css';
-import { Simulation, FixedClock, CONFIG, CHALLENGE, RULES, STATE_NAMES } from './simulation.js';
+import { Simulation, FixedClock, CONFIG, CHALLENGE, CHALLENGE_LAYOUT, RULES, STATE_NAMES } from './simulation.js';
 import { SwimAnimator } from './animation.js';
 import { createScene, STATE_COLORS } from './scene.js';
 
@@ -13,6 +13,15 @@ const SCENARIOS = {
   feeding: ['Feeding', 'Three pellets at mid-depth.'],
   predator: ['Predator', 'One hunting predator.'],
   combined: ['Feed + predator', 'Food and danger together: escape wins.'],
+  obstacles: ['Obstacle course', 'Boulders and coral columns, food and the predator.'],
+};
+const OBSTACLE_COURSE = [['boulder', -12, 4], ['boulder', 11, -5], ['column', -3, -6], ['column', 2, 6], ['column', 15, 8]];
+// Click tools: what a click in the tank does. Keys in brackets.
+const TOOLS = {
+  food: ['Food', 'F', 'Click the water to drop food.'],
+  boulder: ['Boulder', 'B', 'Click the sand to place a boulder.'],
+  column: ['Coral', 'O', 'Click the sand to place a coral column.'],
+  remove: ['Remove', 'X', 'Click a boulder or coral column to remove it.'],
 };
 const STATE_LABEL = ['Cruising', 'Feeding', 'Fleeing'];
 const STRESS_LEVELS = [100, 250, 500, 1000, 1500, 2000];
@@ -20,6 +29,11 @@ const BEST_KEY = 'aquaswarm.challengeBest';
 const icon = {
   predator: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 11c3-4 9-5 14-2l2-3v8l-2-3c-5 3-11 2-14 0z"/><path d="M9 7.4 10.5 4l1.5 3.6"/></svg>',
   clear: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10"/></svg>',
+  food: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="2.4"/><path d="M6.5 13.5l1 2.5M13.5 13.5l-1 2.5M10 12.5v4"/></svg>',
+  boulder: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 16c0-5 3-9.5 7.5-9.5 4.6 0 7.5 4.3 7.5 9.5z"/><path d="M8 9.5l2 2.2 2.3-1.4"/></svg>',
+  column: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 17V5.5C7 3.8 8.3 3 10 3s3 .8 3 2.5V17"/><path d="M5 17h10M9.2 7.5h.1M10.8 11h.1M9.4 14h.1"/></svg>',
+  clearRocks: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 16c0-4.6 2.8-8.6 6.8-8.8M17.5 16c0-2.6-.9-5-2.4-6.5"/><path d="M11.5 3.5l6 6M17.5 3.5l-6 6"/></svg>',
+  remove: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="M7.5 7.5l5 5M12.5 7.5l-5 5"/></svg>',
 };
 const toggle = (id, label, checked = false) =>
   `<label class="switch"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''} aria-label="${label}"><span aria-hidden="true"></span></label>`;
@@ -37,7 +51,7 @@ document.querySelector('#app').innerHTML = `
   <header class="masthead">
     <a class="brand" href="./" aria-label="AquaSwarm home"><span class="brand-mark" aria-hidden="true">≈</span>AquaSwarm<span class="brand-sub">COLLECTIVE BEHAVIOUR LAB</span></a>
     <div class="masthead-right">
-      <nav class="masthead-meta" aria-label="Keyboard shortcuts"><kbd>Space</kbd> pause <kbd>R</kbd> restart <kbd>C</kbd> clear food <kbd>Esc</kbd> finish</nav>
+      <nav class="masthead-meta" aria-label="Keyboard shortcuts"><kbd>Space</kbd> pause <kbd>R</kbd> restart <kbd>F</kbd><kbd>B</kbd><kbd>O</kbd><kbd>X</kbd> tools <kbd>Esc</kbd> finish</nav>
       <button id="menu" class="menu-button" hidden>Menu</button>
     </div>
   </header>
@@ -56,8 +70,11 @@ document.querySelector('#app').innerHTML = `
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
       <div class="scene-bar">
         <div class="toolbar" role="group" aria-label="Interaction">
+          <div class="click-tools" id="click-tools" role="radiogroup" aria-label="Click tool">${Object.entries(TOOLS).map(([id, [label, key]]) =>
+            `<button class="tool-option" role="radio" data-tool="${id}" aria-checked="${id === 'food'}" title="${label} (${key})">${icon[id]}<span>${label}</span></button>`).join('')}</div>
           <button id="predator" class="tool danger" aria-pressed="false">${icon.predator}<span>Release predator</span></button>
-          <button id="clear-food" class="tool" title="Remove all pellets">${icon.clear}Clear food</button>
+          <button id="clear-food" class="tool" title="Remove all pellets (C)">${icon.clear}Clear food</button>
+          <button id="clear-obstacles" class="tool" title="Remove all boulders and coral">${icon.clearRocks}Clear rocks</button>
         </div>
         <div class="view-tools" role="group" aria-label="Camera view"><button id="perspective" class="selected" aria-pressed="true">Perspective</button><button id="top" aria-pressed="false">Top view</button><button id="expand" aria-pressed="false">Expand</button></div>
       </div>
@@ -95,6 +112,7 @@ document.querySelector('#app').innerHTML = `
           </section>`).join('')}
           <div class="card options">
             <div class="option"><div><strong>Body contact</strong><span>Fish bodies push each other apart instead of overlapping, even with separation off.</span></div>${toggle('collisions', 'Body contact', true)}</div>
+            <div class="option"><div><strong>Obstacle avoidance</strong><span>Fish look ${CONFIG.avoidLookahead} s ahead and steer around rocks. Off: they swim into them and only slide off the surface.</span></div>${toggle('avoidance', 'Obstacle avoidance', true)}</div>
           </div>
         </section>
         <section class="panel" id="panel-view" role="tabpanel" aria-labelledby="tab-view" hidden>
@@ -127,6 +145,7 @@ document.querySelector('#app').innerHTML = `
               <li>Keep food away from the predator: fish within ${CONFIG.fleeEnter} u of it flee and stop eating.</li>
               <li>At most ${CONFIG.maxFood} pellets at once; a new one replaces the oldest, so spamming wastes food.</li>
               <li>The predator hunts for ${CONFIG.predatorHunt} s, then rests for ${CONFIG.predatorRest} s.</li>
+              <li>Rocks and coral block sight: fish behind them do not see the predator, and it cannot target them (closer than ${CONFIG.coverSense} u they still feel it).</li>
             </ul>
           </div>
           <div class="card challenge-stats">
@@ -162,7 +181,7 @@ try {
   throw error;
 }
 
-const ui = { swim: true, colorByState: true, stress: null, stressResults: [] };
+const ui = { swim: true, colorByState: true, stress: null, stressResults: [], tool: 'food' };
 scene.setColorMode('state');
 // Game loop: 'menu' (start screen) → 'active' (explore or challenge) → 'ended' (results).
 const game = { phase: 'menu', mode: null, scenario: null, result: null, session: null, best: loadBest() };
@@ -188,9 +207,14 @@ function syncControls() {
     $(`[data-rule="${rule}"]`).classList.toggle('disabled-rule', !simulation.enabled[rule]);
   }
   $('#collisions').checked = simulation.collisions;
+  $('#avoidance').checked = simulation.avoidance;
+  for (const button of document.querySelectorAll('[data-tool]')) button.setAttribute('aria-checked', String(button.dataset.tool === ui.tool));
   $('#pause').textContent = simulation.paused ? 'Resume' : 'Pause';
   $('#status').classList.toggle('paused', simulation.paused);
   const predator = Boolean(simulation.predator), challenge = game.mode === 'challenge';
+  $('#click-tools').hidden = challenge;
+  $('#clear-obstacles').hidden = challenge;
+  $('#clear-obstacles').disabled = !simulation.obstacles.length;
   $('#predator').classList.toggle('selected', predator);
   $('#predator').setAttribute('aria-pressed', String(predator));
   $('#predator').disabled = challenge;
@@ -214,11 +238,35 @@ function setView(view) {
     $(`#${name}`).setAttribute('aria-pressed', String(name === view));
   }
 }
-function restart() {
+// Restart resets fish, food and predator. Obstacles placed in the lab stay unless asked otherwise.
+function restart(keepObstacles = false) {
   stopStress();
+  const kept = keepObstacles ? simulation.obstacles : [];
   simulation.reset(); clock.clear(); animator.reset(); predatorAnimator.reset();
+  for (const o of kept) simulation.addObstacle(o.kind, o.x, o.z);
   document.querySelectorAll('.scenario').forEach(b => b.classList.remove('selected'));
 }
+function setTool(tool) {
+  if (game.mode === 'challenge' || !TOOLS[tool]) return;
+  ui.tool = tool;
+  scene.setGhost(null);
+  $('#tool-hint').textContent = `${TOOLS[tool][2]} Drag to orbit, scroll to zoom.`;
+  syncControls();
+}
+function placeObstacle(kind, x, z) {
+  const problem = simulation.placementProblem(kind, x, z);
+  if (problem) { toast(problem); return; }
+  simulation.addObstacle(kind, x, z);
+  toast(kind === 'boulder' ? 'Boulder placed' : 'Coral column placed');
+  syncControls();
+}
+function removeObstacle(id) {
+  if (id === null || !simulation.removeObstacle(id)) { toast('Click a boulder or coral column to remove it'); return; }
+  scene.setGhost(null);
+  toast('Obstacle removed');
+  syncControls();
+}
+function clearObstacles() { simulation.clearObstacles(); scene.setGhost(null); toast('Rocks cleared'); syncControls(); }
 function setPredator(on) {
   if (game.mode === 'challenge') return;
   simulation.setPredator(on); predatorAnimator.reset();
@@ -238,6 +286,11 @@ function runScenario(name) {
   restart();
   if (name === 'feeding' || name === 'combined') for (const [x, z] of [[-10, 4], [4, -6], [13, 7]]) simulation.addFood(x, z, 11);
   if (name === 'predator' || name === 'combined') simulation.setPredator(true);
+  if (name === 'obstacles') {
+    for (const [kind, x, z] of OBSTACLE_COURSE) simulation.addObstacle(kind, x, z);
+    for (const [x, z] of [[-12, 4], [2, 0], [9, 9]]) simulation.addFood(x, z, 11);
+    simulation.setPredator(true);
+  }
   for (const button of document.querySelectorAll('.scenario')) button.classList.toggle('selected', button.dataset.scenario === name);
   game.scenario = name;
   game.session = newSession();
@@ -283,10 +336,14 @@ function showMenu() {
   $('#start-challenge').addEventListener('click', () => startMode('challenge'));
 }
 
-function startMode(mode) {
+function startMode(mode, keepObstacles = false) {
   game.phase = 'active'; game.mode = mode; game.result = null; game.scenario = null;
-  restart();
-  if (mode === 'challenge') simulation.setPredator(true);
+  restart(keepObstacles && mode === 'explore');
+  if (mode === 'challenge') {
+    for (const [kind, x, z] of CHALLENGE_LAYOUT) simulation.addObstacle(kind, x, z);
+    simulation.setPredator(true);
+    ui.tool = 'food';
+  }
   game.session = newSession();
   setView('perspective');
   applyMode();
@@ -302,7 +359,7 @@ function applyMode() {
   $('#menu').hidden = game.mode === null;
   $('#eyebrow').textContent = challenge ? 'FEEDING CHALLENGE · BEAT THE CLOCK' : 'BOIDS · STATE MACHINE · PROCEDURAL SWIMMING';
   $('#headline').textContent = challenge ? 'Feed the school. Dodge the hunter.' : 'Feed them. Frighten them.';
-  $('#tool-hint').textContent = challenge ? 'Drop food near the school and away from the predator.' : 'Click the water to drop food. Drag to orbit, scroll to zoom.';
+  $('#tool-hint').textContent = challenge ? 'Drop food near the school, behind rocks and away from the predator.' : `${TOOLS[ui.tool][2]} Drag to orbit, scroll to zoom.`;
   for (const panel of document.querySelectorAll('.panel')) panel.hidden = true;
   if (challenge) $('#panel-challenge').hidden = false;
   else selectTab(tabs.find(tab => tab.getAttribute('aria-selected') === 'true') ?? tabs[0]);
@@ -376,9 +433,10 @@ for (const rule of RULES) {
   $(`#${rule}-enabled`).addEventListener('change', event => { simulation.setEnabled(rule, event.target.checked); syncControls(); });
 }
 $('#collisions').addEventListener('change', event => { simulation.setCollisions(event.target.checked); syncControls(); });
+$('#avoidance').addEventListener('change', event => { simulation.setAvoidance(event.target.checked); syncControls(); });
 $('#pause').addEventListener('click', pause);
 // Restart repeats what is running: the selected scenario, or a fresh session of the current mode.
-function restartSession() { if (game.scenario) runScenario(game.scenario); else startMode(game.mode); }
+function restartSession() { if (game.scenario) runScenario(game.scenario); else startMode(game.mode, true); }
 $('#reset').addEventListener('click', restartSession);
 $('#finish').addEventListener('click', () => finish(game.mode === 'challenge' ? 'abandoned' : 'summary'));
 $('#menu').addEventListener('click', showMenu);
@@ -391,6 +449,8 @@ $('#expand').addEventListener('click', () => {
 });
 $('#predator').addEventListener('click', () => setPredator(!simulation.predator));
 $('#clear-food').addEventListener('click', clearFood);
+$('#clear-obstacles').addEventListener('click', clearObstacles);
+document.querySelectorAll('[data-tool]').forEach(button => button.addEventListener('click', () => setTool(button.dataset.tool)));
 document.querySelectorAll('.scenario').forEach(button => button.addEventListener('click', () => runScenario(button.dataset.scenario)));
 $('#swim').addEventListener('change', event => { ui.swim = event.target.checked; scene.setSwimEnabled(ui.swim); });
 $('#color-state').addEventListener('change', event => { ui.colorByState = event.target.checked; scene.setColorMode(ui.colorByState ? 'state' : 'species'); });
@@ -423,22 +483,45 @@ tabs.forEach((tab, i) => {
   });
 });
 
-// A click (not a drag) on the canvas drops food.
+// A click (not a drag) on the canvas uses the current tool: food at the surface, obstacles on the sand.
 let down = null;
+const toolKind = () => (game.mode === 'challenge' ? 'food' : ui.tool);
 scene.domElement.addEventListener('pointerdown', event => { down = { x: event.clientX, y: event.clientY, t: performance.now() }; });
 scene.domElement.addEventListener('pointerup', event => {
   if (!down || Math.hypot(event.clientX - down.x, event.clientY - down.y) > 6 || performance.now() - down.t > 500) { down = null; return; }
   down = null;
   if (game.phase !== 'active') return;
+  const tool = toolKind();
+  if (tool === 'remove') { removeObstacle(scene.obstacleAt(event.clientX, event.clientY)); return; }
+  if (tool === 'boulder' || tool === 'column') {
+    const point = scene.floorPoint(event.clientX, event.clientY);
+    if (point) placeObstacle(tool, point.x, point.z); else toast('Click the sand inside the tank');
+    return;
+  }
   const point = scene.surfacePoint(event.clientX, event.clientY);
   if (point) dropFood(point.x, point.z); else toast('Click inside the tank to drop food');
 });
+// Preview where an obstacle would go (green fits, red does not) or which one would be removed.
+scene.domElement.addEventListener('pointermove', event => {
+  const tool = toolKind();
+  if (game.phase !== 'active' || tool === 'food' || event.buttons) { scene.setGhost(null); return; }
+  if (tool === 'remove') {
+    const target = simulation.obstacles.find(o => o.id === scene.obstacleAt(event.clientX, event.clientY));
+    scene.setGhost(target ? { kind: 'remove', x: target.x, z: target.z, r: target.r, ok: false } : null);
+    return;
+  }
+  const point = scene.floorPoint(event.clientX, event.clientY);
+  scene.setGhost(point && { kind: tool, x: point.x, z: point.z, r: tool === 'boulder' ? CONFIG.boulderRadius : CONFIG.columnRadius,
+    ok: !simulation.placementProblem(tool, point.x, point.z) });
+});
+scene.domElement.addEventListener('pointerleave', () => scene.setGhost(null));
 
 document.addEventListener('keydown', event => {
   if (game.phase !== 'active') return;
   if (event.target.closest('input, button, summary, a, textarea, select, [role="tab"]') || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
   const actions = {
     Space: pause, KeyR: restartSession, KeyC: clearFood,
+    KeyF: () => setTool('food'), KeyB: () => setTool('boulder'), KeyO: () => setTool('column'), KeyX: () => setTool('remove'),
     KeyP: () => setPredator(!simulation.predator),
     Escape: () => finish(game.mode === 'challenge' ? 'abandoned' : 'summary'),
   };
@@ -540,6 +623,7 @@ animationId = requestAnimationFrame(frame);
 if (new URLSearchParams(location.search).has('test')) {
   window.aquaswarmSnapshot = () => structuredClone({ fish: simulation.fish, time: simulation.time,
     paused: simulation.paused, weights: simulation.weights, enabled: simulation.enabled, collisions: simulation.collisions,
+    avoidance: simulation.avoidance, obstacles: simulation.obstacles, obstacleStats: simulation.obstacleStats, tool: ui.tool,
     food: simulation.food, predator: simulation.predator, summary: simulation.summary(),
     game: { phase: game.phase, mode: game.mode, result: game.result, meals: meals(), session: game.session, best: game.best },
     stats: simulation.stats, stress: { running: Boolean(ui.stress), results: ui.stressResults },
