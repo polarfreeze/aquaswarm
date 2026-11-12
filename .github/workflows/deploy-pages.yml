@@ -29,6 +29,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Install Chromium for UI regression checks
+        run: npx playwright install --with-deps chromium
+      - name: Check Explore and environment regressions
+        run: npx playwright test --grep-invert "feeding challenge:|population slider"
       - run: npm run build
       - name: Preserve the current A5 build at /v0.5/
         run: |

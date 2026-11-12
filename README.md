@@ -43,7 +43,8 @@ After `npm ci` the app needs no network: there are no external models, fonts, im
 | Drop food | With the Food tool (F), click the water. Food sinks and is eaten gradually; it comes to rest on top of boulders. At most three pellets: a fourth replaces the oldest. Clear food (C) removes them. |
 | Obstacles | Explore mode. Boulder (B) or Coral (O), then click the sand; a green preview means it fits, red means it is too close to the glass or another obstacle (fish need room to pass). Remove (X), then click an obstacle. Up to six; **Clear rocks** removes all. Restart keeps them. |
 | Predator | Release predator (P), explore mode only. It hunts the nearest fish for 6 s, then rests and patrols for 5 s. It is slower than a fleeing fish and never eats; fish that come close flee. |
-| Scenarios | Cruise, Feeding, Predator, Feed + predator, Obstacle course. Each restarts from seed 549. |
+| Environment | Explore opens with two boulders and three coral columns. The **Obstacles** switch saves the layout while off and restores it when on. **Restore default layout** restores the five rocks without changing food or the predator. |
+| Scenarios | Cruise, Feeding, Predator, Feed + predator. Each restarts fish from seed 549 while preserving the environment and any custom rocks. |
 | Camera | Drag to orbit, scroll to zoom toward the pointer. Perspective and Top view buttons. Expand hides the side panel. |
 | Rules | Each Boids rule has its own on/off switch and a 0–3 weight slider. **Body contact** (on by default) keeps fish bodies from overlapping, even with separation off. **Obstacle avoidance** (on by default) can be turned off to compare with push-out only. |
 | Display | Swim animation on/off and colour by state. |
@@ -120,11 +121,12 @@ npm run build && npm run record
   - Obstacles: placement rules; no fish body ends a step inside an obstacle while cruising, feeding, fleeing or with separation off; avoidance needs far fewer push-outs than push-out alone; fast swims straight at a column or boulder; a sharp turn next to a column; no fish stays pinned against a rock; the predator never enters one; pellets avoid columns and rest on boulders; cover blocks sight both ways.
   - Session counters, and that the challenge (with its rocks) is winnable with good food placement but not with random placement.
   - Swim-animation properties.
-- `npm run test:browser`: 6 Playwright tests on the real app:
+- `npm run test:browser`: 7 Playwright tests on the real app:
   - Start menu, controls, pause/resume, restart, and the Space-after-click shortcut.
   - Explore: feeding, pellet cap, scenarios, hunting predator, recovery, display options and the session summary.
   - Challenge: the rock layout, HUD, a scripted player winning, best time, play again, and the time-out loss.
-  - Obstacles: placing with the tool bar and keys, refused spots, fish staying outside, restart keeping rocks, remove, clear, the Obstacle course scenario and the avoidance switch.
+  - Obstacles: placing with the tool bar and keys, refused spots, fish staying outside, restart keeping rocks, remove, clear, restoring the layout and the avoidance switch.
+  - Environment: default rocks, all four behaviours preserving the layout, off/on saving custom rocks, and isolation from the fixed challenge layout.
   - Population slider and stress test (pausing stops it).
   - Mobile layout of the menu and the lab.
 - `compare:scenarios` writes `evidence/scenario-comparison-a4.json`; `compare:rules` writes `evidence/rule-comparison-a3.json`.

@@ -1,5 +1,9 @@
 # Validation
 
+## A5 environment controls revision
+
+Explore now opens with five rocks in Cruise. Environment is independent of the four behaviour presets. Five targeted browser regressions passed for controls/camera, Explore, obstacles, environment and mobile layout. These cover placement/removal, restoring defaults, preserving custom rocks across behaviours and Restart, saving/restoring the layout with the environment switch, and keeping Challenge's fixed rocks independent. Restart still restores the perspective camera. The production build passed. Earlier measurements below describe the original A5 benchmark layout and remain historical evidence.
+
 ## Assignment 5 obstacles (v0.5.0)
 
 Date: 2026-11-02. Same machine as below (Windows 11, Intel Core Ultra 5 125H, Intel Arc graphics, Node 22.19.0).

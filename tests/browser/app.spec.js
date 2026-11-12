@@ -191,10 +191,12 @@ test('feeding challenge: HUD, win screen, best time, play again and time-out los
   expect(errors).toEqual([]);
 });
 
-test('obstacles: place with preview, reject blocked spots, remove, clear, keep on restart, course scenario', async ({ page }) => {
+test('obstacles: place with preview, reject blocked spots, remove, clear, keep on restart, restore layout', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await open(page, 'explore');
+  expect((await snapshot(page)).obstacles).toHaveLength(5);
+  await page.getByRole('button', { name: 'Clear rocks' }).click();
   await page.getByRole('button', { name: 'Top view' }).click();
   await page.waitForTimeout(600);
   // Boulder tool (button), then a click on open sand places one.
@@ -238,13 +240,16 @@ test('obstacles: place with preview, reject blocked spots, remove, clear, keep o
   await page.getByRole('button', { name: 'Clear rocks' }).click();
   expect((await snapshot(page)).obstacles).toHaveLength(0);
   await expect(page.getByRole('button', { name: 'Clear rocks' })).toBeDisabled();
-  // Food tool again drops pellets; the obstacle course scenario sets up its own tank.
+  // Restoring the environment leaves behaviour independent.
   await page.keyboard.press('KeyF');
   p = await surface(page, 0, 0);
   await page.mouse.click(p.x, p.y);
   await expect.poll(async () => (await snapshot(page)).food.length).toBe(1);
   await page.getByRole('tab', { name: 'Scenarios' }).click();
-  await page.getByRole('button', { name: /Obstacle course/ }).click();
+  await page.getByRole('button', { name: 'Restore default layout' }).click();
+  expect((await snapshot(page)).food).toHaveLength(1);
+  expect((await snapshot(page)).predator).toBeNull();
+  await page.getByRole('button', { name: /Feed \+ predator/ }).click();
   s = await snapshot(page);
   expect(s.obstacles).toHaveLength(5); expect(s.predator).not.toBeNull(); expect(s.food).toHaveLength(3);
   // Avoidance switch on the Rules tab.
@@ -254,6 +259,53 @@ test('obstacles: place with preview, reject blocked spots, remove, clear, keep o
   await page.getByRole('checkbox', { name: 'Obstacle avoidance' }).check();
   expect((await snapshot(page)).avoidance).toBe(true);
   expect(errors).toEqual([]);
+});
+
+test('environment: default rocks, independent behaviours, saved custom layout and mode isolation', async ({ page }) => {
+  await open(page, 'explore');
+  const layout = s => s.obstacles.map(({ kind, x, z }) => [kind, x, z]);
+  const defaults = layout(await snapshot(page));
+  expect(defaults).toHaveLength(5);
+  await expect(page.getByRole('checkbox', { name: 'Obstacles', exact: true })).toBeChecked();
+  await expect(page.getByRole('button', { name: /Obstacle course/ })).toHaveCount(0);
+  expect((await snapshot(page)).food).toEqual([]);
+  expect((await snapshot(page)).predator).toBeNull();
+  for (const [scenario, food, predator] of [['feeding', 3, true], ['predator', 0, false], ['combined', 3, false], ['cruise', 0, true]]) {
+    await page.locator(`[data-scenario="${scenario}"]`).click();
+    const s = await snapshot(page);
+    expect(layout(s)).toEqual(defaults);
+    expect(s.food).toHaveLength(food);
+    expect(s.predator === null).toBe(predator);
+  }
+  // Remove one rock to form a custom layout, then preserve it through Restart and off/on.
+  await page.getByRole('button', { name: 'Top view' }).click();
+  await page.waitForTimeout(600);
+  await page.getByRole('radio', { name: 'Remove', exact: true }).click();
+  const column = (await snapshot(page)).obstacles.find(o => o.kind === 'column');
+  const p = await page.evaluate(([x, z]) => window.aquaswarmProjectPoint(x, 17, z), [column.x, column.z]);
+  await page.mouse.click(p.x, p.y);
+  await expect.poll(async () => (await snapshot(page)).obstacles.length).toBe(4);
+  const custom = layout(await snapshot(page));
+  await page.getByRole('button', { name: 'Restart', exact: true }).click();
+  expect(layout(await snapshot(page))).toEqual(custom);
+  await page.getByRole('checkbox', { name: 'Obstacles', exact: true }).uncheck();
+  expect((await snapshot(page)).obstacles).toEqual([]);
+  await expect(page.getByRole('radio', { name: 'Boulder', exact: true })).toBeDisabled();
+  await page.locator('[data-scenario="feeding"]').click();
+  expect((await snapshot(page)).obstacles).toEqual([]);
+  await page.getByRole('checkbox', { name: 'Obstacles', exact: true }).check();
+  expect(layout(await snapshot(page))).toEqual(custom);
+  expect((await snapshot(page)).food).toHaveLength(3);
+  await page.getByRole('button', { name: 'Restore default layout' }).click();
+  expect(layout(await snapshot(page))).toEqual(defaults);
+  expect((await snapshot(page)).food).toHaveLength(3);
+  await page.getByRole('checkbox', { name: 'Obstacles', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  await page.getByRole('button', { name: /Feeding challenge/ }).click();
+  expect((await snapshot(page)).obstacles.map(o => o.kind)).toEqual(['boulder', 'boulder', 'column', 'column']);
+  await page.getByRole('button', { name: 'Menu', exact: true }).click();
+  await page.getByRole('button', { name: /Explore the lab/ }).click();
+  expect(layout(await snapshot(page))).toEqual(defaults);
 });
 
 test('population slider and stress test', async ({ page }) => {

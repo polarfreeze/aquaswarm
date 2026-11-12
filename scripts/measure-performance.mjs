@@ -42,10 +42,10 @@ try {
       simulatedPerRealSecond: (s.time - t0) / (total / 1000), fish: s.fish.length, states: s.summary.states };
   }, seconds * 1000);
 
-  // Steady state: the Obstacle course scenario (five obstacles, three pellets, hunting predator) is the
+  // Steady state: the default five-rock environment with Feed + predator is the
   // busiest 100-fish case. Pellets last about 15 s, so a new one is dropped every 20 s.
   const dropFood = async () => { const p = await page.evaluate(() => window.aquaswarmProjectPoint(5, 18, 3)); await page.mouse.click(p.x, p.y); };
-  await page.getByRole('button', { name: /Obstacle course/ }).click();
+  await page.getByRole('button', { name: /Feed \+ predator/ }).click();
   const feeder = setInterval(() => dropFood().catch(() => {}), 20000);
   const steady = await measure(300);
   clearInterval(feeder);

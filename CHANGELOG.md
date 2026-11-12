@@ -11,7 +11,7 @@ Live: https://polarfreeze.github.io/aquaswarm/ · previous releases: https://pol
 - **Push-out as a safety net.** If a fish body (the same capsule used for body contact) still ends a step inside an obstacle, it is moved back to the surface and loses only the speed pointing into it, so it slides along instead of stopping or bouncing. The predator gets the same treatment with a larger body.
 - **Cover.** Rocks and coral block sight: a fish behind one does not see the predator, and the predator cannot target it. Closer than 4 u the fish still feels the predator through the rock.
 - **Lab tools.** A click tool bar: Food (F), Boulder (B), Coral (O) and Remove (X). A green or red preview shows where an obstacle fits; blocked spots give a reason. **Clear rocks** removes all. Restart keeps the obstacles you placed.
-- **Obstacle course scenario.** Two boulders, three coral columns, three pellets and the predator.
+- **Independent environment.** Explore starts in Cruise with two boulders and three coral columns. The Obstacles switch saves/restores custom layouts; Restore default layout changes only the rocks. Cruise, Feeding, Predator and Feed + predator preserve the environment instead of replacing it. Challenge keeps its own fixed layout.
 - **Obstacle avoidance switch** on the Rules tab, to compare steering with push-out only.
 - **Challenge tank.** The feeding challenge now has two boulders and two coral columns. Food dropped behind a rock, away from the predator, is the safest meal. Target unchanged: 11 meals in 90 s.
 - **Pellets and rocks.** Pellets sink onto the top of a boulder instead of into it, and a pellet dropped over a column lands just beside it.
