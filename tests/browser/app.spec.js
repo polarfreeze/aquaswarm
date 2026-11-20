@@ -33,10 +33,12 @@ test('start menu, live rule controls, pause, resume, restart and camera', async 
   expect(still.swim.phase).toEqual(paused.swim.phase);
   await page.getByRole('tab', { name: 'Rules' }).click();
   for (const rule of ['separation', 'alignment', 'cohesion']) {
-    await page.locator(`#${rule}-weight`).focus();
-    await page.keyboard.press('Home');
-    for (let step = 0; step < 50; step++) await page.keyboard.press('ArrowRight');
-    await expect(page.locator(`#${rule}-value`)).toHaveText('2.50');
+    const slider = page.locator(`#${rule}-weight`);
+    await slider.press('Home');
+    await expect(page.locator(`#${rule}-value`)).toHaveText('0.00');
+    await slider.press('End');
+    await slider.press('ArrowLeft');
+    await expect(page.locator(`#${rule}-value`)).toHaveText('2.95');
     await page.getByRole('checkbox', { name: `Enable ${rule}`, exact: true }).uncheck();
     await expect(page.locator(`#${rule}-weight`)).toBeDisabled();
     expect((await snapshot(page)).enabled[rule]).toBe(false);
