@@ -286,11 +286,17 @@ test('environment: default rocks, independent behaviours, saved custom layout an
   await page.mouse.click(p.x, p.y);
   await expect.poll(async () => (await snapshot(page)).obstacles.length).toBe(4);
   const custom = layout(await snapshot(page));
+  await page.getByRole('tab', { name: 'Rules' }).click();
+  await page.getByRole('button', { name: 'No alignment', exact: true }).click();
+  expect(layout(await snapshot(page))).toEqual(custom);
+  await page.getByRole('tab', { name: 'Scenarios' }).click();
   await page.getByRole('button', { name: 'Restart', exact: true }).click();
   expect(layout(await snapshot(page))).toEqual(custom);
   await page.getByRole('checkbox', { name: 'Obstacles', exact: true }).uncheck();
   expect((await snapshot(page)).obstacles).toEqual([]);
   await expect(page.getByRole('radio', { name: 'Boulder', exact: true })).toBeDisabled();
+  await page.getByRole('radio', { name: 'Inspect', exact: true }).click();
+  expect((await snapshot(page)).tool).toBe('inspect');
   await page.locator('[data-scenario="feeding"]').click();
   expect((await snapshot(page)).obstacles).toEqual([]);
   await page.getByRole('checkbox', { name: 'Obstacles', exact: true }).check();
@@ -306,6 +312,86 @@ test('environment: default rocks, independent behaviours, saved custom layout an
   await page.getByRole('button', { name: 'Menu', exact: true }).click();
   await page.getByRole('button', { name: /Explore the lab/ }).click();
   expect(layout(await snapshot(page))).toEqual(defaults);
+});
+
+test('observation: inspect a fish, follow it, sensing ranges, rule presets, selection cleared on restart', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await open(page, 'explore');
+  // Inspect tool, then a click on a fish selects it: inspector panel and state tag appear.
+  await page.keyboard.press('KeyI');
+  expect((await snapshot(page)).tool).toBe('inspect');
+  await expect(page.locator('#tool-hint')).toContainText('Click a fish to inspect it');
+  await page.getByRole('button', { name: 'Pause' }).click();
+  let s = await snapshot(page);
+  const fish = s.fish.reduce((a, b) => (Math.hypot(a.x, a.z) < Math.hypot(b.x, b.z) ? a : b));
+  const p = await page.evaluate(id => window.aquaswarmProject(id), fish.id);
+  await page.mouse.click(p.x, p.y);
+  await expect.poll(async () => (await snapshot(page)).selected).not.toBeNull();
+  const id = (await snapshot(page)).selected;
+  await expect(page.locator('#inspector')).toBeVisible();
+  await expect(page.locator('#inspector')).toContainText(`Fish #${id}`);
+  await expect(page.locator('#inspector')).toContainText('Neighbours');
+  await expect(page.locator('#fish-tag')).toContainText(`#${id} Cruising`);
+  // A click on empty water selects nothing and says why.
+  const corner = await page.evaluate(() => window.aquaswarmProjectPoint(-21, 1, 13));
+  await page.mouse.click(corner.x, corner.y);
+  await expect(page.locator('#toast')).toContainText('No fish there');
+  expect((await snapshot(page)).selected).toBe(id);
+  await page.getByRole('button', { name: 'Resume' }).click();
+  // V follows the fish: the camera target moves onto it. Esc clears the selection, then finishes.
+  await page.keyboard.press('KeyV');
+  expect((await snapshot(page)).follow).toBe(true);
+  await expect(page.getByRole('button', { name: 'Follow' })).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(async () => {
+    const snap = await snapshot(page), f = snap.fish.find(f => f.id === id), t = snap.rendering.target;
+    return Math.hypot(f.x - t.x, f.y - t.y, f.z - t.z);
+  }, { timeout: 8000 }).toBeLessThan(2);
+  await page.keyboard.press('Escape');
+  s = await snapshot(page);
+  expect(s.selected).toBeNull();
+  expect(s.follow).toBe(false);
+  expect(s.game.phase).toBe('active');
+  await expect(page.locator('#inspector')).toBeHidden();
+  await expect(page.locator('#fish-tag')).toBeHidden();
+  // Restart clears an old selection.
+  const q = await page.evaluate(i => window.aquaswarmProject(i), id);
+  await page.mouse.click(q.x, q.y);
+  await page.getByRole('button', { name: 'Restart' }).click();
+  expect((await snapshot(page)).selected).toBeNull();
+  await expect(page.locator('#inspector')).toBeHidden();
+  // Sensing ranges switch.
+  await page.getByRole('tab', { name: 'Display' }).click();
+  await page.locator('label:has(#ranges)').click();
+  expect((await snapshot(page)).ranges).toBe(true);
+  // Rule presets restart the running scenario from the seed with one change, and survive Restart.
+  await page.getByRole('tab', { name: 'Scenarios' }).click();
+  await page.getByRole('button', { name: /^Feeding/ }).click();
+  await page.getByRole('tab', { name: 'Rules' }).click();
+  await page.getByRole('button', { name: 'No cohesion' }).click();
+  s = await snapshot(page);
+  expect(s.preset).toBe('no-cohesion');
+  expect(s.enabled).toEqual({ separation: true, alignment: true, cohesion: false });
+  expect(s.food.length).toBe(3);
+  expect(s.time).toBeLessThan(0.5);
+  await expect(page.locator('#cohesion-enabled')).not.toBeChecked();
+  await expect(page.locator('#preset-detail')).toContainText('drifts apart');
+  await page.getByRole('button', { name: 'Restart' }).click();
+  expect((await snapshot(page)).enabled.cohesion).toBe(false);
+  await page.getByRole('button', { name: 'Tight school' }).click();
+  s = await snapshot(page);
+  expect(s.weights).toEqual({ separation: 1.2, alignment: 2, cohesion: 1.6 });
+  expect(s.enabled.cohesion).toBe(true);
+  await page.getByRole('button', { name: 'Default school' }).click();
+  expect((await snapshot(page)).weights).toEqual({ separation: 2.4, alignment: 1.1, cohesion: 0.55 });
+  // The challenge always uses the default rules, whatever preset the lab had.
+  await page.getByRole('button', { name: 'No separation' }).click();
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.getByRole('button', { name: /Feeding challenge/ }).click();
+  s = await snapshot(page);
+  expect(s.enabled).toEqual({ separation: true, alignment: true, cohesion: true });
+  await expect(page.locator('#click-tools')).toBeHidden();
+  expect(errors).toEqual([]);
 });
 
 test('population slider and stress test', async ({ page }) => {

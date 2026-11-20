@@ -65,7 +65,9 @@ test('fish bodies never end a step inside an obstacle while cruising, feeding or
     for (const f of sim.fish) {
       const speed = Math.hypot(f.vx, f.vy, f.vz);
       assert.ok(Object.values(f).every(Number.isFinite));
-      assert.ok(speed >= CONFIG.minSpeed - 1e-9 && speed <= CONFIG.maxSpeed + 1e-9, `${name}: speed ${speed}`);
+      // Fleeing fish (and fish still slowing down after a flee) may exceed the cruise limit.
+      const top = name === 'food + predator' ? CONFIG.fleeSpeed : CONFIG.maxSpeed;
+      assert.ok(speed >= CONFIG.minSpeed - 1e-9 && speed <= top + 1e-9, `${name}: speed ${speed}`);
     }
   }
 });

@@ -1,6 +1,8 @@
 // Measures the production build in Chromium on this machine's GPU (D3D11 via ANGLE when available):
-// 5-minute steady state at 100 fish in the obstacle course, the in-app stress test (in the same tank)
-// and a 2000-fish crowding worst case. Writes evidence/performance-a5.json (A4 file kept as a record). Headless frames are not vsync-capped, so FPS can exceed 60.
+// 5-minute steady state at 100 fish in the obstacle course, 1 minute more with the observation tools
+// on (inspected fish, sensing rings, follow camera), the in-app stress test (in the same tank) and a
+// 2000-fish crowding worst case. Writes evidence/performance-a6.json (earlier files kept as a record).
+// Headless frames are not vsync-capped, so FPS can exceed 60.
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -51,6 +53,22 @@ try {
   clearInterval(feeder);
   console.log('steady', steady);
 
+  // Observation tools on: one inspected fish with its overlay, sensing rings and the follow camera.
+  await page.keyboard.press('KeyI');
+  const picked = await page.evaluate(() => {
+    const f = window.aquaswarmSnapshot().fish.reduce((a, b) => (Math.hypot(a.x, a.z) < Math.hypot(b.x, b.z) ? a : b));
+    return window.aquaswarmProject(f.id);
+  });
+  await page.mouse.click(picked.x, picked.y);
+  await page.getByRole('tab', { name: 'Display' }).click();
+  await page.locator('#ranges').check({ force: true });
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('KeyV');
+  const observing = { ...(await measure(60)), selected: (await page.evaluate(() => window.aquaswarmSnapshot())).selected !== null };
+  await page.keyboard.press('Escape');
+  await page.locator('#ranges').uncheck({ force: true });
+  console.log('observing', observing);
+
   // In-app stress test: 100 → 2000 fish, about 3 s per level, with the five obstacles in place.
   await page.getByRole('tab', { name: 'Stress test' }).click();
   await page.locator('#reset').click();
@@ -70,9 +88,9 @@ try {
 
   await mkdir('evidence', { recursive: true });
   const obstacles = await page.evaluate(() => window.aquaswarmSnapshot().obstacles.length);
-  await writeFile('evidence/performance-a5.json', JSON.stringify({ date: new Date().toISOString(),
+  await writeFile('evidence/performance-a6.json', JSON.stringify({ date: new Date().toISOString(),
     browser: `Chromium ${browser.version()} (headless, GPU via ANGLE)`, renderer, os: `${os.platform()} ${os.release()}`,
     cpu: os.cpus()[0].model, viewport: '1920 × 1080', build: 'vite production build (npm run build)',
     note: 'Headless rAF is not vsync-capped; a visible browser tab is limited to the display refresh rate. Simulation is fixed-step 60 Hz with at most 4 steps and a 12 ms step budget per frame; when overloaded, simulated time slows (see simulatedPerRealSecond).',
-    obstacles, steadyState100FishObstacleCourse: steady, stressTest: stress, stressSummary: summary, crowding2000FishOnePellet: crowding, errors }, null, 2));
+    obstacles, steadyState100FishObstacleCourse: steady, observationTools100Fish: observing, stressTest: stress, stressSummary: summary, crowding2000FishOnePellet: crowding, errors }, null, 2));
 } finally { if (browser) await browser.close(); server.kill(); }

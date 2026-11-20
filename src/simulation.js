@@ -641,6 +641,23 @@ export class Simulation {
     return next;
   }
 
+  // Details for the fish inspector: what the selected fish currently senses.
+  inspect(id) {
+    const f = this.fish.find(fish => fish.id === id);
+    if (!f) return null;
+    let neighbors = 0;
+    for (const other of this.fish) if (other.id !== id && len(f.x - other.x, f.y - other.y, f.z - other.z) < CONFIG.perception) neighbors++;
+    const p = this.predator;
+    const predatorDistance = p ? len(f.x - p.x, f.y - p.y, f.z - p.z) : null;
+    // Hidden: the predator is near enough to matter, but a rock blocks the line between them.
+    const hidden = Boolean(p) && predatorDistance < CONFIG.fleeExit && predatorDistance > CONFIG.coverSense
+      && lineBlocked(f.x, f.y, f.z, p.x, p.y, p.z, this.obstacles);
+    const surface = o => o.kind === 'column' ? Math.hypot(f.x - o.x, f.z - o.z) - o.r : len(f.x - o.x, f.y - o.y, f.z - o.z) - o.r;
+    return { ...f, speed: len(f.vx, f.vy, f.vz), neighbors, predatorDistance, hidden,
+      foodDistance: this.food.length ? Math.min(...this.food.map(k => len(f.x - k.x, f.y - k.y, f.z - k.z))) : null,
+      obstacleDistance: this.obstacles.length ? Math.max(0, Math.min(...this.obstacles.map(surface))) : null };
+  }
+
   stateCounts() {
     const counts = [0, 0, 0];
     for (const f of this.fish) counts[f.state]++;

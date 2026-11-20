@@ -1,5 +1,69 @@
 # Validation
 
+## Assignment 6 release candidate (v0.6.0)
+
+Date: 2026-11-02. Same laptop as below (Windows 11, Intel Core Ultra 5 125H, Intel Arc graphics, Node 22.19.0, Chromium 145 headless with GPU via ANGLE/D3D11), running on battery.
+
+### Requirements from the plan
+
+| A6 goal | Evidence |
+| --- | --- |
+| Select a fish: perception sphere, heading arrow, state tag | Inspect tool (I) and click; overlay and tag follow the fish (browser test 5, figures in the A6 report) |
+| Sensing ranges | Display switch: food ring 13 u, predator rings 8 u / 12 u (browser test 5) |
+| Follow camera | V or **Follow**; camera target ends within 2 u of the fish (browser test 5); rocks in the way turn see-through |
+| Overlay cleared on reset | Restart, scenarios and the menu clear inspection. A population decrease clears inspection if it removes the selected fish (browser test 5) |
+| Rule switches and comparison presets explain behaviour | Six presets restart from the seed with the selected rule settings; the challenge ignores them (browser test 5) |
+| Neighbour cap for 2000-fish crowds | Tried and dropped, see below |
+| Performance pass, backup video | `evidence/performance-a6.json`. Generate a local walkthrough with `npm run record`. |
+
+### Automated results
+
+The test counts immediately below describe the original A6 candidate. The release adds the A5 environment regression and tests preserving custom rocks when changing Boids presets. The published revision is checked by GitHub Actions.
+
+- `npm test`: 49/49 pass. New file `tests/observation.test.js` (2 tests): the inspector's neighbour count, food and rock distances, a missing fish, and the "hidden by a rock" flag in cover, in the open and within 4 u.
+- `npm run test:browser`: 7/7 pass in Chromium (3.8 min). New test: inspect tool, picking a fish, inspector and state tag, a miss on empty water, follow camera, Esc and Restart clearing the selection, the ranges switch, the presets (rules, pellets kept, restart keeps the preset) and the challenge using the default rules.
+- `npm run build`: passes.
+- The simulation step is unchanged from v0.5.0 (the only addition is the read-only `inspect()`), so the obstacle and challenge-balance results in the A5 section still apply.
+
+### Neighbour cap and grid experiments (Node, seeds 549, 7 and 42)
+
+Obstacle course with three pellets and the predator, mean ms per step over steps 300–1500:
+
+| Variant | 1000 fish | 2000 fish | Fish capped at 1000 |
+| --- | ---: | ---: | ---: |
+| Finer grid (3.5 u cells), no cap | 10.6 | 50.5 | 0% |
+| + cap 96 | 14.8 | 52.9 | 63% |
+| + cap 64 | 15.2 | 44.0 | 72% |
+| + cap 32 | 13.5 | 40.3 | 86% |
+
+At 100 fish a cap of 32 is reached by 62% of fish while cruising, so it changes normal behaviour; 96 never triggers at 100 fish but does not help crowds.
+
+Old grid (7 u cells) against the finer grid, two interleaved rounds, ms per step:
+
+| Case | Old grid | Finer grid |
+| --- | ---: | ---: |
+| 1000 cruising | 16.2 / 11.5 | 17.3 / 14.1 |
+| 2000 cruising | 50.3 / 47.7 | 42.9 / 46.9 |
+| 1000 feeding | 24.0 / 24.0 | 22.3 / 24.6 |
+| 2000 feeding | 83.9 / 77.2 | 67.1 / 56.4 |
+
+The largest gain was in the 2000-fish feeding case. I kept the old grid and dropped the cap.
+
+### Performance (`evidence/performance-a6.json`)
+
+| Run | Mean FPS | p95 frame | Worst frame | Real time |
+| --- | ---: | ---: | ---: | ---: |
+| Obstacle course, 100 fish, 5 min | 119.9 | 8.4 ms | 50.0 ms | 100% |
+| Same, with inspected fish, rings and follow camera, 1 min | 118.9 | 8.4 ms | 83.5 ms | 100% |
+
+Both runs recorded an 8.4 ms p95. They had different lengths and feeding schedules, so the benchmark does not isolate the tools’ cost. A visible tab runs at the display refresh rate.
+
+Stress test in the same tank, this run: 120 FPS up to 500 fish, 99.7 at 1000, 41.8 at 1500, 29.6 at 2000; 2000 fish crowding one pellet 30.3 FPS at 0.51× real time. Three follow-up runs in the headless shell, rather than full Chromium, gave 45–60 FPS at 1000 fish and 15–28 at 2000 (step 9–17 ms and 32–60 ms). The A5 run of the same simulation step gave 49 and 18 FPS. The 100-fish case ran at full frame rate in every run.
+
+### Visual check
+
+Screenshots from the GPU build at 1600 × 1000 and 390 × 844: the selection overlay, tag and rings render; on a phone the inspector shrinks to state and numbers and sits above the tool bar; in follow mode a coral column in front of the camera turns see-through.
+
 ## A5 environment controls revision
 
 Explore now opens with five rocks in Cruise. Environment is independent of the four behaviour presets. Five targeted browser regressions passed for controls/camera, Explore, obstacles, environment and mobile layout. These cover placement/removal, restoring defaults, preserving custom rocks across behaviours and Restart, saving/restoring the layout with the environment switch, and keeping Challenge's fixed rocks independent. Restart still restores the perspective camera. The production build passed. Earlier measurements below describe the original A5 benchmark layout and remain historical evidence.

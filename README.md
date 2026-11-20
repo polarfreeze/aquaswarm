@@ -4,14 +4,15 @@ An interactive 3D fish-schooling simulation for the browser. One hundred fish fo
 
 The app opens on a start menu with two modes:
 
-- **Explore the lab:** switch Boids rules, run behaviour scenarios, drop food, place boulders and coral, release a hunting predator, and stress-test up to 2000 fish. **Finish** shows a session summary.
+- **Explore the lab:** switch Boids rules or compare them with presets, run behaviour scenarios, drop food, place boulders and coral, release a hunting predator, inspect and follow a single fish, and stress-test up to 2000 fish. **Finish** shows a session summary.
 - **Feeding challenge:** get the school to eat 11 meals in 90 seconds while the predator hunts. Fish that flee stop eating, and rocks block the predator's sight, so where you drop food matters. It ends in a win or time-out screen and keeps your best time.
 
-CS 549 AI for Visual Computing · Group AquaSwarm · Dongquan Yang (dy303) · Version 0.5.0 (Assignment 5)
+CS 549 AI for Visual Computing · Group AquaSwarm · Dongquan Yang (dy303) · Version 0.6.0 (Assignment 6 release candidate)
 
-- **Live demo:** https://polarfreeze.github.io/aquaswarm/ (Assignment 5 at https://polarfreeze.github.io/aquaswarm/v0.5/, Assignment 4 at https://polarfreeze.github.io/aquaswarm/v0.4/, Assignment 3 at https://polarfreeze.github.io/aquaswarm/v0.3/)
+- **A6 live demo:** https://polarfreeze.github.io/aquaswarm/v0.6/ (earlier releases stay online: Assignment 5 at https://polarfreeze.github.io/aquaswarm/v0.5/, Assignment 4 at https://polarfreeze.github.io/aquaswarm/v0.4/, Assignment 3 at https://polarfreeze.github.io/aquaswarm/v0.3/)
 - **Release notes:** [CHANGELOG.md](CHANGELOG.md)
 - **Assignment 3 demo video (2:28):** [Google Drive](https://drive.google.com/file/d/1dXwZbWmqc93Bux9iuLTf61M0L1bciW_A/view?usp=drive_link). The local copy is `evidence/assignment-3-demo.webm`, with captions in `.srt` and a chapter list.
+- **Record an A6 demo:** Run `npm run build` and then `npm run record` to create a captioned walkthrough locally.
 
 ## Build and run
 
@@ -42,14 +43,15 @@ After `npm ci` the app needs no network: there are no external models, fonts, im
 | Start | Pick a mode on the start menu. **Menu** (top right) returns to it. |
 | Drop food | With the Food tool (F), click the water. Food sinks and is eaten gradually; it comes to rest on top of boulders. At most three pellets: a fourth replaces the oldest. Clear food (C) removes them. |
 | Obstacles | Explore mode. Boulder (B) or Coral (O), then click the sand; a green preview means it fits, red means it is too close to the glass or another obstacle (fish need room to pass). Remove (X), then click an obstacle. Up to six; **Clear rocks** removes all. Restart keeps them. |
+| Inspect a fish | Inspect tool (I), then click a fish. It gets its perception sphere (7 u), personal-space sphere, velocity arrow and a state tag; a panel shows its state and how long it has been in it, speed, neighbour count, and the distance to the nearest food, the predator (and whether a rock hides it) and the nearest rock. **Follow** (V) moves the camera with it; rocks in the way turn see-through. Esc or × clears the selection; Restart clears it too. |
 | Predator | Release predator (P), explore mode only. It hunts the nearest fish for 6 s, then rests and patrols for 5 s. It is slower than a fleeing fish and never eats; fish that come close flee. |
 | Environment | Explore opens with two boulders and three coral columns. The **Obstacles** switch saves the layout while off and restores it when on. **Restore default layout** restores the five rocks without changing food or the predator. |
 | Scenarios | Cruise, Feeding, Predator, Feed + predator. Each restarts fish from seed 549 while preserving the environment and any custom rocks. |
 | Camera | Drag to orbit, scroll to zoom toward the pointer. Perspective and Top view buttons. Expand hides the side panel. |
-| Rules | Each Boids rule has its own on/off switch and a 0–3 weight slider. **Body contact** (on by default) keeps fish bodies from overlapping, even with separation off. **Obstacle avoidance** (on by default) can be turned off to compare with push-out only. |
-| Display | Swim animation on/off and colour by state. |
+| Rules | **Compare rules** presets (Default school, No separation, No alignment, No cohesion, All rules off, Tight school) apply the selected Boids settings and restart the current scenario from the same seed and obstacle layout. The preset stays on for Restart; the challenge always uses the defaults. Each Boids rule also has its own on/off switch and a 0–3 weight slider. **Body contact** (on by default) keeps fish bodies from overlapping, even with separation off. **Obstacle avoidance** (on by default) can be turned off to compare with push-out only. |
+| Display | Swim animation on/off, colour by state, and **Show sensing ranges**: the food-attraction ring (13 u) around each pellet and the predator's flee rings (8 u enter, 12 u exit). |
 | Stress test | Population slider (10–2000), plus an automatic run at 100 → 2000 fish that reports FPS, simulation ms per step, and real-time rate. |
-| Transport | Pause/Resume (Space), Restart (R) and Finish (Esc). Restart repeats the current scenario or mode from the seed. Finish ends the session and shows the results screen. |
+| Transport | Pause/Resume (Space), Restart (R) and Finish (Esc; with a fish selected, Esc first clears the selection). Restart repeats the current scenario or mode from the seed. Finish ends the session and shows the results screen. |
 
 Fish colours show their state: orange = cruise, green = feed, red = flee.
 
@@ -61,7 +63,7 @@ Fish colours show their state: orange = cruise, green = feed, red = flee.
 | `src/animation.js` | `SwimAnimator`: smoothed yaw/pitch/bank, tail-beat phase and amplitude, turn bend. Pure JavaScript, so it is unit-tested. |
 | `src/fishGeometry.js` | Procedural low-poly fish and predator meshes, plus the vertex-shader swim deformation. |
 | `src/obstacleGeometry.js` | Procedural boulders, coral columns and sea grass, plus the vertex-shader sway for the grass. |
-| `src/scene.js` | Three.js scene: instanced school and predator, obstacles, sea grass, placement preview, shadows, food, camera. |
+| `src/scene.js` | Three.js scene: instanced school and predator, obstacles, sea grass, placement preview, shadows, food, selected-fish overlay, sensing rings, camera and follow camera, fish picking. |
 | `src/main.js` | UI, game states (menu → explore or challenge → results), input, main loop, stress test, and the test hooks (`?test` only). |
 
 **Boids.** Each fish reads the previous step's state (double-buffered), so the order of updates does not matter.
@@ -85,6 +87,11 @@ Fish colours show their state: orange = cruise, green = feed, red = flee.
 - *Avoidance (steering).* Each fish projects every obstacle's centre onto its line of travel. If the centre is ahead within 1.1 s of travel and closer to the line than radius + body + 0.9 u, the fish steers sideways, harder the nearer and more head-on the obstacle is. A fish already within 0.9 u of a surface is also pushed straight out. This runs in every state, and the predator uses it too.
 - *Push-out (constraint).* After the step and the fish-fish contact pass, a fish whose body capsule overlaps an obstacle is moved back to the surface along the normal and loses only its inward speed (it keeps at least its minimum speed by sliding along the surface).
 - *Cover.* If the straight line between a fish and the predator passes through an obstacle (85% of its radius), they cannot see each other: the fish does not flee and the predator does not target it. Within 4 u the fish still senses the predator.
+
+**Observation.**
+- The inspector reads `Simulation.inspect(id)`, which counts neighbours by brute force for that one fish and tests the predator sight line with the same cover rule the simulation uses.
+- A click picks the fish closest to the click ray, within a tolerance that grows with distance from the camera.
+- The follow camera moves the orbit target toward the fish with exponential smoothing (time constant 0.2 s), so orbit and zoom still work while following. Obstacles that the camera-to-fish ray hits are drawn see-through.
 
 **Animation.**
 - Tail-beat frequency is (0.8 + 0.75 × speed) Hz, and amplitude also grows with speed.
@@ -112,28 +119,30 @@ npm run build && npm run perf
 npm run build && npm run record
 ```
 
-- `npm test`: 47 Node tests covering:
+- `npm test`: 49 Node tests covering:
   - Boids invariants and 10-minute runs, one with cruising only and one with the full feed/flee loop.
   - The grid neighbour search matches a brute-force search.
   - Determinism and overload behaviour of the fixed clock.
   - Body contact: no overlapping bodies with separation off (cruising and crowding on food), and two fish swimming head-on do not pass through each other.
   - Feeding, the pellet cap, fleeing, priority, hysteresis, recovery and the predator's hunt/rest cycle.
   - Obstacles: placement rules; no fish body ends a step inside an obstacle while cruising, feeding, fleeing or with separation off; avoidance needs far fewer push-outs than push-out alone; fast swims straight at a column or boulder; a sharp turn next to a column; no fish stays pinned against a rock; the predator never enters one; pellets avoid columns and rest on boulders; cover blocks sight both ways.
+  - The fish inspector: neighbour count, distances to food and rocks, and the "hidden by a rock" flag.
   - Session counters, and that the challenge (with its rocks) is winnable with good food placement but not with random placement.
   - Swim-animation properties.
-- `npm run test:browser`: 7 Playwright tests on the real app:
+- `npm run test:browser`: 8 Playwright tests on the real app:
   - Start menu, controls, pause/resume, restart, and the Space-after-click shortcut.
   - Explore: feeding, pellet cap, scenarios, hunting predator, recovery, display options and the session summary.
   - Challenge: the rock layout, HUD, a scripted player winning, best time, play again, and the time-out loss.
   - Obstacles: placing with the tool bar and keys, refused spots, fish staying outside, restart keeping rocks, remove, clear, restoring the layout and the avoidance switch.
   - Environment: default rocks, all four behaviours preserving the layout, off/on saving custom rocks, and isolation from the fixed challenge layout.
+  - Observation: picking a fish, inspector and state tag, a miss on empty water, follow camera, Esc and Restart clearing the selection, sensing ranges, rule presets (and that the challenge ignores them).
   - Population slider and stress test (pausing stops it).
   - Mobile layout of the menu and the lab.
 - `compare:scenarios` writes `evidence/scenario-comparison-a4.json`; `compare:rules` writes `evidence/rule-comparison-a3.json`.
 - `balance` plays the challenge (with its rocks) with four scripted strategies, every 4 s on five seeds and at irregular intervals on twenty, and writes `evidence/challenge-balance-a5.json`.
 - `compare:obstacles` runs five situations around four obstacles with avoidance on and off and writes `evidence/obstacles-a5.json`.
-- `perf` measures the production build on this machine's GPU at 1920×1080. It runs 5 minutes of the Obstacle course scenario, then the stress test in the same tank, then a crowding worst case, and writes `evidence/performance-a5.json`.
-- `record` makes a captioned demo video of the lab.
+- `perf` measures the production build on this machine's GPU at 1920×1080. It runs 5 minutes of Feed + predator with the default obstacle layout, 1 minute more with an inspected fish, sensing rings and the follow camera, then the stress test in the same tank, then a crowding worst case, and writes `evidence/performance-a6.json`.
+- `record` makes the captioned backup demo video (`evidence/assignment-6-demo.webm`), following the final demo route.
 
 `VALIDATION.md` summarises the results.
 

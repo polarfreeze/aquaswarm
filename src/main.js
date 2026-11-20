@@ -1,5 +1,5 @@
 import './style.css';
-import { Simulation, FixedClock, CONFIG, CHALLENGE, CHALLENGE_LAYOUT, RULES, STATE_NAMES } from './simulation.js';
+import { Simulation, FixedClock, CONFIG, CHALLENGE, CHALLENGE_LAYOUT, DEFAULT_WEIGHTS, RULES, STATE_NAMES } from './simulation.js';
 import { SwimAnimator } from './animation.js';
 import { createScene, STATE_COLORS } from './scene.js';
 
@@ -21,6 +21,18 @@ const TOOLS = {
   boulder: ['Boulder', 'B', 'Click the sand to place a boulder.'],
   column: ['Coral', 'O', 'Click the sand to place a coral column.'],
   remove: ['Remove', 'X', 'Click a boulder or coral column to remove it.'],
+  inspect: ['Inspect', 'I', 'Click a fish to inspect it. V follows it, Esc clears the selection.'],
+};
+const OBSTACLE_TOOLS = ['boulder', 'column', 'remove'];
+// Rule comparisons: each preset restarts the current scenario from the same seed,
+// so the difference on screen comes from the rules alone.
+const PRESETS = {
+  default: ['Default school', 'All three rules at their default weights.', {}],
+  'no-separation': ['No separation', 'Fish crowd into a dense ball; only body contact keeps them apart.', { off: ['separation'] }],
+  'no-alignment': ['No alignment', 'Fish stay together but mill around without a shared heading.', { off: ['alignment'] }],
+  'no-cohesion': ['No cohesion', 'Fish align locally, but the school drifts apart into small groups.', { off: ['cohesion'] }],
+  'rules-off': ['All rules off', 'Each fish swims alone and only reacts to the walls.', { off: RULES }],
+  tight: ['Tight school', 'Strong cohesion and alignment, weak separation.', { weights: { separation: 1.2, alignment: 2, cohesion: 1.6 } }],
 };
 const STATE_LABEL = ['Cruising', 'Feeding', 'Fleeing'];
 const STRESS_LEVELS = [100, 250, 500, 1000, 1500, 2000];
@@ -33,6 +45,7 @@ const icon = {
   column: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 17V5.5C7 3.8 8.3 3 10 3s3 .8 3 2.5V17"/><path d="M5 17h10M9.2 7.5h.1M10.8 11h.1M9.4 14h.1"/></svg>',
   clearRocks: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 16c0-4.6 2.8-8.6 6.8-8.8M17.5 16c0-2.6-.9-5-2.4-6.5"/><path d="M11.5 3.5l6 6M17.5 3.5l-6 6"/></svg>',
   remove: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="M7.5 7.5l5 5M12.5 7.5l-5 5"/></svg>',
+  inspect: '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5"/><path d="M12.3 12.3 17 17"/></svg>',
 };
 const toggle = (id, label, checked = false) =>
   `<label class="switch"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''} aria-label="${label}"><span aria-hidden="true"></span></label>`;
@@ -50,7 +63,7 @@ document.querySelector('#app').innerHTML = `
   <header class="masthead">
     <a class="brand" href="./" aria-label="AquaSwarm home"><span class="brand-mark" aria-hidden="true">≈</span>AquaSwarm<span class="brand-sub">COLLECTIVE BEHAVIOUR LAB</span></a>
     <div class="masthead-right">
-      <nav class="masthead-meta" aria-label="Keyboard shortcuts"><kbd>Space</kbd> pause <kbd>R</kbd> restart <kbd>F</kbd><kbd>B</kbd><kbd>O</kbd><kbd>X</kbd> tools <kbd>Esc</kbd> finish</nav>
+      <nav class="masthead-meta" aria-label="Keyboard shortcuts"><kbd>Space</kbd> pause <kbd>R</kbd> restart <kbd>F</kbd><kbd>B</kbd><kbd>O</kbd><kbd>X</kbd><kbd>I</kbd> tools <kbd>V</kbd> follow <kbd>Esc</kbd> finish</nav>
       <button id="menu" class="menu-button" hidden>Menu</button>
     </div>
   </header>
@@ -66,6 +79,8 @@ document.querySelector('#app').innerHTML = `
           <div class="meter" role="progressbar" aria-label="Meals eaten" aria-valuemin="0" aria-valuemax="${CHALLENGE.meals}" aria-valuenow="0" id="hud-meter"><i id="hud-fill"></i></div></div>
       </div>
       <div id="aquarium"><div id="loading" role="status">Preparing the aquarium…</div></div>
+      <div id="fish-tag" class="fish-tag" hidden></div>
+      <aside id="inspector" class="inspector" aria-label="Selected fish" hidden></aside>
       <div id="toast" class="toast" role="status" aria-live="polite"></div>
       <div class="scene-bar">
         <div class="toolbar" role="group" aria-label="Interaction">
@@ -114,6 +129,13 @@ document.querySelector('#app').innerHTML = `
             <input type="range" id="${rule}-weight" min="0" max="3" step="0.05" aria-describedby="${rule}-description">
             <p class="rule-detail" id="${rule}-description">${RULE_TEXT[rule][1]}</p>
           </section>`).join('')}
+          <div class="card">
+            <h3>Compare rules</h3>
+            <p class="note">Restarts the current scenario from seed ${CONFIG.seed} with the selected rule settings.</p>
+            <div class="presets">${Object.entries(PRESETS).map(([id, [name, text]]) =>
+              `<button class="preset" data-preset="${id}" title="${text}">${name}</button>`).join('')}</div>
+            <p class="preset-detail" id="preset-detail" aria-live="polite">${PRESETS.default[1]}</p>
+          </div>
           <div class="card options">
             <div class="option"><div><strong>Body contact</strong><span>Fish bodies push each other apart instead of overlapping, even with separation off.</span></div>${toggle('collisions', 'Body contact', true)}</div>
             <div class="option"><div><strong>Obstacle avoidance</strong><span>Fish look ${CONFIG.avoidLookahead} s ahead and steer around rocks. Off: they swim into them and only slide off the surface.</span></div>${toggle('avoidance', 'Obstacle avoidance', true)}</div>
@@ -125,6 +147,7 @@ document.querySelector('#app').innerHTML = `
           <div class="card options">
             <div class="option"><div><strong>Swim animation</strong><span>Tail beat and turning bend. Off shows the rigid model.</span></div>${toggle('swim', 'Swim animation', true)}</div>
             <div class="option"><div><strong>Colour by state</strong><span>Green feeding, red fleeing.</span></div>${toggle('color-state', 'Colour by state', true)}</div>
+            <div class="option"><div><strong>Show sensing ranges</strong><span>Food attraction (${CONFIG.feedEnter} u) and predator flee rings (${CONFIG.fleeEnter} u enter, ${CONFIG.fleeExit} u exit).</span></div>${toggle('ranges', 'Show sensing ranges')}</div>
           </div>
         </section>
         <section class="panel" id="panel-perf" role="tabpanel" aria-labelledby="tab-perf" hidden>
@@ -185,7 +208,7 @@ try {
   throw error;
 }
 
-const ui = { swim: true, colorByState: true, stress: null, stressResults: [], tool: 'food', obstaclesEnabled: true, obstacleLayout: DEFAULT_OBSTACLES.map(o => [...o]) };
+const ui = { swim: true, colorByState: true, ranges: false, stress: null, stressResults: [], tool: 'food', selected: null, follow: false, preset: 'default', obstaclesEnabled: true, obstacleLayout: DEFAULT_OBSTACLES.map(o => [...o]) };
 scene.setColorMode('state');
 // Game loop: 'menu' (start screen) → 'active' (explore or challenge) → 'ended' (results).
 const game = { phase: 'menu', mode: null, scenario: null, result: null, session: null, best: loadBest() };
@@ -214,9 +237,10 @@ function syncControls() {
   $('#avoidance').checked = simulation.avoidance;
   for (const button of document.querySelectorAll('[data-tool]')) {
     button.setAttribute('aria-checked', String(button.dataset.tool === ui.tool));
-    button.disabled = button.dataset.tool !== 'food' && !ui.obstaclesEnabled;
+    button.disabled = !ui.obstaclesEnabled && OBSTACLE_TOOLS.includes(button.dataset.tool);
   }
   $('#environment-obstacles').checked = ui.obstaclesEnabled;
+  for (const button of document.querySelectorAll('[data-preset]')) button.classList.toggle('selected', button.dataset.preset === ui.preset);
   $('#pause').textContent = simulation.paused ? 'Resume' : 'Pause';
   $('#status').classList.toggle('paused', simulation.paused);
   const predator = Boolean(simulation.predator), challenge = game.mode === 'challenge';
@@ -240,6 +264,7 @@ function pause() {
   simulation.paused = !simulation.paused; clock.clear(); syncControls(); updateReadouts();
 }
 function setView(view) {
+  setFollow(false);
   scene.resetCamera(view);
   for (const name of ['perspective', 'top']) {
     $(`#${name}`).classList.toggle('selected', name === view);
@@ -250,12 +275,60 @@ function setView(view) {
 function restart(keepObstacles = false) {
   stopStress();
   const kept = keepObstacles ? simulation.obstacles : [];
+  select(null);
   simulation.reset(); clock.clear(); animator.reset(); predatorAnimator.reset();
   for (const o of kept) simulation.addObstacle(o.kind, o.x, o.z);
+  applyPreset();
   document.querySelectorAll('.scenario').forEach(b => b.classList.remove('selected'));
 }
+// Applies the selected rule preset to the freshly reset simulation.
+// The challenge always plays with the default rules.
+function applyPreset() {
+  if (game.mode === 'challenge') return;
+  const { off = [], weights = {} } = PRESETS[ui.preset][2];
+  for (const rule of RULES) {
+    simulation.setWeight(rule, weights[rule] ?? DEFAULT_WEIGHTS[rule]);
+    simulation.setEnabled(rule, !off.includes(rule));
+  }
+}
+function choosePreset(id) {
+  ui.preset = id;
+  $('#preset-detail').textContent = PRESETS[id][1];
+  const scenario = game.scenario;
+  if (scenario) runScenario(scenario); else { restart(true); game.session = newSession(); syncControls(); }
+  toast(`${PRESETS[id][0]}: restarted from seed ${CONFIG.seed}`);
+}
+
+// Selection: the inspected fish gets a perception sphere, heading arrow and state tag in the scene,
+// and the inspector panel lists what it senses.
+function select(id) {
+  ui.selected = id;
+  if (id === null) {
+    $('#inspector').hidden = true; $('#fish-tag').hidden = true;
+    setFollow(false);
+    return;
+  }
+  $('#inspector').hidden = false;
+  $('#inspector').innerHTML = `
+    <div class="inspector-head"><strong>Fish #${id}</strong>
+      <button id="follow-fish" class="follow" aria-pressed="false" title="Camera follows this fish (V)">Follow</button>
+      <button id="close-inspector" aria-label="Clear selection" title="Clear selection (Esc)">×</button></div>
+    <div id="inspector-body"></div>`;
+  $('#follow-fish').addEventListener('click', () => setFollow(!ui.follow));
+  $('#close-inspector').addEventListener('click', () => select(null));
+  setFollow(ui.follow);
+  updateInspector(); updateFishTag();
+}
+function setFollow(on) {
+  const wasFollowing = ui.follow;
+  ui.follow = on && ui.selected !== null;
+  if (ui.follow) scene.setFollow(true);
+  else if (wasFollowing) scene.setFollow(false);
+  const button = $('#follow-fish');
+  if (button) { button.setAttribute('aria-pressed', String(ui.follow)); button.classList.toggle('selected', ui.follow); }
+}
 function setTool(tool) {
-  if (game.mode === 'challenge' || !TOOLS[tool] || (!ui.obstaclesEnabled && tool !== 'food')) return;
+  if (game.mode === 'challenge' || !TOOLS[tool] || (!ui.obstaclesEnabled && OBSTACLE_TOOLS.includes(tool))) return;
   ui.tool = tool;
   scene.setGhost(null);
   $('#tool-hint').textContent = `${TOOLS[tool][2]} Drag to orbit, scroll to zoom.`;
@@ -284,7 +357,7 @@ function setObstaclesEnabled(enabled) {
   ui.obstaclesEnabled = enabled;
   simulation.clearObstacles();
   if (enabled) for (const [kind, x, z] of ui.obstacleLayout) simulation.addObstacle(kind, x, z);
-  else setTool('food');
+  else if (OBSTACLE_TOOLS.includes(ui.tool)) setTool('food');
   scene.setGhost(null);
   syncControls();
   toast(enabled ? 'Obstacle environment restored' : 'Open water: obstacle layout saved');
@@ -496,6 +569,8 @@ document.querySelectorAll('[data-tool]').forEach(button => button.addEventListen
 document.querySelectorAll('.scenario').forEach(button => button.addEventListener('click', () => runScenario(button.dataset.scenario)));
 $('#swim').addEventListener('change', event => { ui.swim = event.target.checked; scene.setSwimEnabled(ui.swim); });
 $('#color-state').addEventListener('change', event => { ui.colorByState = event.target.checked; scene.setColorMode(ui.colorByState ? 'state' : 'species'); });
+$('#ranges').addEventListener('change', event => { ui.ranges = event.target.checked; scene.setShowRanges(ui.ranges); });
+document.querySelectorAll('[data-preset]').forEach(button => button.addEventListener('click', () => choosePreset(button.dataset.preset)));
 $('#population-input').addEventListener('input', event => { simulation.setCount(Number(event.target.value)); syncControls(); updateReadouts(); });
 $('#stress').addEventListener('click', () => (ui.stress ? stopStress() : startStress()));
 // A mouse click leaves focus on the button, and the keyboard handler then ignores Space/R/C
@@ -503,6 +578,10 @@ $('#stress').addEventListener('click', () => (ui.stress ? stopStress() : startSt
 document.addEventListener('click', event => {
   const button = event.target.closest('button');
   if (button && event.detail > 0 && !button.closest('#screen')) button.blur();
+});
+// The same for switches: clicking one leaves focus on its checkbox.
+document.addEventListener('pointerup', event => {
+  if (event.target.closest('.switch')) setTimeout(() => document.activeElement?.blur());
 });
 
 // Tabs with arrow-key navigation.
@@ -535,6 +614,11 @@ scene.domElement.addEventListener('pointerup', event => {
   if (game.phase !== 'active') return;
   const tool = toolKind();
   if (tool === 'remove') { removeObstacle(scene.obstacleAt(event.clientX, event.clientY)); return; }
+  if (tool === 'inspect') {
+    const id = scene.pickFish(event.clientX, event.clientY, simulation.fish);
+    if (id === null) toast('No fish there. Try clicking directly on one'); else select(id);
+    return;
+  }
   if (tool === 'boulder' || tool === 'column') {
     const point = scene.floorPoint(event.clientX, event.clientY);
     if (point) placeObstacle(tool, point.x, point.z); else toast('Click the sand inside the tank');
@@ -546,7 +630,7 @@ scene.domElement.addEventListener('pointerup', event => {
 // Preview where an obstacle would go (green fits, red does not) or which one would be removed.
 scene.domElement.addEventListener('pointermove', event => {
   const tool = toolKind();
-  if (game.phase !== 'active' || tool === 'food' || event.buttons) { scene.setGhost(null); return; }
+  if (game.phase !== 'active' || tool === 'food' || tool === 'inspect' || event.buttons) { scene.setGhost(null); return; }
   if (tool === 'remove') {
     const target = simulation.obstacles.find(o => o.id === scene.obstacleAt(event.clientX, event.clientY));
     scene.setGhost(target ? { kind: 'remove', x: target.x, z: target.z, r: target.r, ok: false } : null);
@@ -564,8 +648,10 @@ document.addEventListener('keydown', event => {
   const actions = {
     Space: pause, KeyR: restartSession, KeyC: clearFood,
     KeyF: () => setTool('food'), KeyB: () => setTool('boulder'), KeyO: () => setTool('column'), KeyX: () => setTool('remove'),
-    KeyP: () => setPredator(!simulation.predator),
-    Escape: () => finish(game.mode === 'challenge' ? 'abandoned' : 'summary'),
+    KeyI: () => setTool('inspect'), KeyP: () => setPredator(!simulation.predator),
+    KeyV: () => { if (ui.selected === null) toast('Inspect a fish first (I), then V follows it'); else setFollow(!ui.follow); },
+    // Esc first clears a selection, then finishes the session.
+    Escape: () => (ui.selected !== null ? select(null) : finish(game.mode === 'challenge' ? 'abandoned' : 'summary')),
   };
   if (!actions[event.code]) return;
   event.preventDefault(); actions[event.code]();
@@ -589,6 +675,36 @@ function updateReadouts() {
   const label = game.phase === 'menu' ? 'Menu' : game.phase === 'ended' ? 'Finished' : simulation.paused ? 'Paused' : 'Running';
   $('#status').textContent = `${label} · ${formatTime(simulation.time)}`;
 }
+const STATE_HINT = ['Boids rules only', 'Swimming to the nearest pellet', 'Escaping the predator'];
+function updateInspector() {
+  if (ui.selected === null) return;
+  const info = simulation.inspect(ui.selected);
+  if (!info) { select(null); return; }
+  const distance = value => value === null ? '—' : `${value.toFixed(1)} u`;
+  const predator = info.predatorDistance === null ? '—' : `${info.predatorDistance.toFixed(1)} u${info.hidden ? ' · hidden by a rock' : ''}`;
+  $('#inspector-body').innerHTML = `
+    <span class="state-chip" style="--c:${STATE_COLORS[info.state]}">${STATE_LABEL[info.state]} · ${info.stateTime.toFixed(1)} s</span>
+    <p class="state-hint">${STATE_HINT[info.state]}</p>
+    <dl>
+      <dt>Speed</dt><dd>${info.speed.toFixed(2)} u/s</dd>
+      <dt>Neighbours (${CONFIG.perception} u)</dt><dd>${info.neighbors}</dd>
+      <dt>Nearest food</dt><dd>${distance(info.foodDistance)}</dd>
+      <dt>Predator</dt><dd>${predator}</dd>
+      <dt>Nearest rock</dt><dd>${distance(info.obstacleDistance)}</dd>
+    </dl>
+    <p>Wire sphere: perception (${CONFIG.perception} u). Inner sphere: personal space (${CONFIG.separationRadius} u). Arrow: velocity.</p>`;
+}
+// The state tag floats above the selected fish in screen space.
+function updateFishTag() {
+  const fish = ui.selected === null ? null : simulation.fish.find(f => f.id === ui.selected);
+  if (!fish) { $('#fish-tag').hidden = true; return; }
+  const point = scene.project(fish.x, fish.y + 1.6, fish.z);
+  $('#fish-tag').hidden = !point.visible;
+  $('#fish-tag').textContent = `#${fish.id} ${STATE_LABEL[fish.state]}`;
+  $('#fish-tag').style.setProperty('--c', STATE_COLORS[fish.state]);
+  $('#fish-tag').style.transform = `translate(${point.x}px, ${point.y + $('#aquarium').offsetTop}px) translate(-50%, -100%)`;
+}
+
 // Stress test: step the population up, measuring rendered FPS and simulation cost at each level.
 function startStress() {
   ui.stress = { level: 0, phaseStart: performance.now(), warm: true, frames: 0, stepMs: 0, steps: 0, simStart: 0, previous: simulation.fish.length };
@@ -647,7 +763,8 @@ function frame(now) {
     lastSimTime = simulation.time;
     animator.update(simulation.fish, simDelta);
     if (simulation.predator) predatorAnimator.update([simulation.predator], simDelta);
-    scene.render(simulation, animator, predatorAnimator);
+    scene.render(simulation, animator, predatorAnimator, ui.selected);
+    if (ui.selected !== null) { updateFishTag(); if (frames % 6 === 0) updateInspector(); }
     frames++;
     stressFrame(now, stepMs, steps);
     checkGame();
@@ -666,6 +783,7 @@ if (new URLSearchParams(location.search).has('test')) {
   window.aquaswarmSnapshot = () => structuredClone({ fish: simulation.fish, time: simulation.time,
     paused: simulation.paused, weights: simulation.weights, enabled: simulation.enabled, collisions: simulation.collisions,
     avoidance: simulation.avoidance, obstacles: simulation.obstacles, obstacleStats: simulation.obstacleStats, tool: ui.tool,
+    selected: ui.selected, follow: ui.follow, ranges: ui.ranges, preset: ui.preset,
     food: simulation.food, predator: simulation.predator, summary: simulation.summary(),
     game: { phase: game.phase, mode: game.mode, result: game.result, meals: meals(), session: game.session, best: game.best },
     stats: simulation.stats, stress: { running: Boolean(ui.stress), results: ui.stressResults },

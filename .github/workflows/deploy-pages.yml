@@ -1,4 +1,4 @@
-# Publishes the A5 beta at the site root and /v0.5/, with earlier builds at /v0.3/ and /v0.4/.
+# Publishes A6 at the site root and /v0.6/ and preserves the earlier releases.
 # One-time setup: repository Settings → Pages → Source: "GitHub Actions".
 name: Deploy to GitHub Pages
 
@@ -34,26 +34,28 @@ jobs:
       - name: Check Explore and environment regressions
         run: npx playwright test --grep-invert "feeding challenge:|population slider"
       - run: npm run build
-      - name: Preserve the current A5 build at /v0.5/
+      - name: Preserve the current A6 build at /v0.6/
         run: |
-          cp -a dist "$RUNNER_TEMP/aquaswarm-a5-dist"
-          mkdir -p dist/v0.5
-          cp -a "$RUNNER_TEMP/aquaswarm-a5-dist/." dist/v0.5/
-      - name: Build earlier assignment releases into dist/v0.3 and dist/v0.4
+          cp -a dist "$RUNNER_TEMP/aquaswarm-a6-dist"
+          mkdir -p dist/v0.6
+          cp -a "$RUNNER_TEMP/aquaswarm-a6-dist/." dist/v0.6/
+      - name: Build earlier assignment releases into dist/v0.3 through dist/v0.5
         run: |
-          for version in 0.3 0.4; do
+          for version in 0.3 0.4 0.5; do
             release="$RUNNER_TEMP/aquaswarm-$version"
             ref="refs/tags/v$version.0"
             # The final A4 body-contact fixes followed the original v0.4.0 tag.
             if [ "$version" = "0.4" ]; then
               ref="c9d03bc210550aefb0cf3c85ac58d615a0ed9cd4"
+            elif [ "$version" = "0.5" ]; then
+              ref="7421d0a7c70272e7407e10ce6247813bcf436728"
             fi
             git worktree add --detach "$release" "$ref"
             (cd "$release" && npm ci && npm run build -- --outDir "$GITHUB_WORKSPACE/dist/v$version" --emptyOutDir)
           done
       - name: Verify the versioned entry points
         run: |
-          for version in 0.3 0.4 0.5; do
+          for version in 0.3 0.4 0.5 0.6; do
             test -s "dist/v$version/index.html"
             test -d "dist/v$version/assets"
           done

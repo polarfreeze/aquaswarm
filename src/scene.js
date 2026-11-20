@@ -16,7 +16,7 @@ export function createScene(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.domElement.setAttribute('aria-label', '3D aquarium. Drag to orbit, scroll to zoom toward the pointer, click the water to drop food.');
+  renderer.domElement.setAttribute('aria-label', '3D aquarium. Drag to orbit, scroll to zoom toward the pointer, click the water to drop food or click a fish to inspect it.');
   renderer.domElement.setAttribute('role', 'img');
   container.appendChild(renderer.domElement);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
@@ -95,6 +95,9 @@ export function createScene(container) {
 
   // Obstacles: one mesh per boulder or coral column, built from the obstacle id as seed.
   const rockMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true });
+  // Rocks between the follow camera and its fish are drawn see-through so the fish stays visible.
+  const rockFadeMaterial = rockMaterial.clone();
+  Object.assign(rockFadeMaterial, { transparent: true, opacity: 0.2, depthWrite: false });
   const obstacleMeshes = new Map();
   function syncObstacles(obstacles) {
     const live = new Set(obstacles.map(o => o.id));
@@ -162,6 +165,38 @@ export function createScene(container) {
   scene.add(ripple);
   let rippleStart = -Infinity;
 
+  // Sensing ranges, drawn when "Show sensing ranges" is on: flee enter/exit rings around the predator
+  // and the food-attraction ring around each pellet, at the agent's height.
+  const circle = (radius, color, opacity, dashed = false) => {
+    const points = [];
+    for (let k = 0; k <= 96; k++) { const a = k / 96 * Math.PI * 2; points.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius)); }
+    const material = dashed
+      ? new THREE.LineDashedMaterial({ color, transparent: true, opacity, dashSize: 0.6, gapSize: 0.5 })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), material);
+    if (dashed) line.computeLineDistances();
+    line.visible = false;
+    scene.add(line);
+    return line;
+  };
+  const fleeEnterRing = circle(CONFIG.fleeEnter, STATE_COLORS[STATE.flee], 0.75);
+  const fleeExitRing = circle(CONFIG.fleeExit, STATE_COLORS[STATE.flee], 0.55, true);
+  const foodRings = Array.from({ length: CONFIG.maxFood }, () => circle(CONFIG.feedEnter, STATE_COLORS[STATE.feed], 0.5));
+
+  // Selected fish: perception sphere, separation sphere, heading arrow and a marker ring.
+  const selection = new THREE.Group();
+  const perception = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.IcosahedronGeometry(CONFIG.perception, 1)),
+    new THREE.LineBasicMaterial({ color: '#1d6f8a', transparent: true, opacity: 0.22, depthWrite: false }));
+  const personal = new THREE.Mesh(new THREE.SphereGeometry(CONFIG.separationRadius, 20, 12),
+    new THREE.MeshBasicMaterial({ color: '#1d6f8a', transparent: true, opacity: 0.08, depthWrite: false }));
+  const marker = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.06, 6, 32), new THREE.MeshBasicMaterial({ color: '#1d6f8a' }));
+  const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 3, '#1d6f8a', 0.6, 0.35);
+  selection.add(perception, personal, marker, arrow);
+  selection.visible = false;
+  scene.add(selection);
+  const direction = new THREE.Vector3();
+  let showRanges = false;
+
   let colorMode = 'species';
 
   function poseAgent(mesh, swim, index, agent, animator, i, scale) {
@@ -180,7 +215,7 @@ export function createScene(container) {
     shadows.setMatrixAt(index, transform.matrix);
   }
 
-  function update(simulation, animator, predatorAnimator, now) {
+  function update(simulation, animator, predatorAnimator, selectedId, now) {
     swayUniforms.uTime.value = now / 1000;
     syncObstacles(simulation.obstacles);
     const fish = simulation.fish;
@@ -215,14 +250,49 @@ export function createScene(container) {
     school.swim.needsUpdate = true; predatorMesh.swim.needsUpdate = true;
     school.swim.clearUpdateRanges(); school.swim.addUpdateRange(0, fish.length * 3);
 
+    const selected = selectedId === null ? null : fish.find(f => f.id === selectedId);
+    selection.visible = Boolean(selected);
+    if (selected) {
+      const i = fish.indexOf(selected);
+      selection.position.set(selected.x, selected.y, selected.z);
+      marker.rotation.set(Math.PI / 2, 0, -animator.yaw[i]);
+      const speed = Math.hypot(selected.vx, selected.vy, selected.vz);
+      arrow.setDirection(direction.set(selected.vx, selected.vy, selected.vz).normalize());
+      arrow.setLength(0.9 + speed * 0.7, 0.55, 0.32);
+      arrow.setColor(stateColors[selected.state]);
+    }
+    fleeEnterRing.visible = fleeExitRing.visible = showRanges && Boolean(predator);
+    if (predator) { fleeEnterRing.position.set(predator.x, predator.y, predator.z); fleeExitRing.position.copy(fleeEnterRing.position); }
+    foodRings.forEach((ring, k) => {
+      ring.visible = showRanges && k < food.length;
+      if (ring.visible) ring.position.set(food[k].x, food[k].y, food[k].z);
+    });
+
     const age = (now - rippleStart) / 1000;
     ripple.visible = age < 1.1;
     if (ripple.visible) { ripple.scale.setScalar(0.4 + age * 2.4); ripple.material.opacity = 0.55 * (1 - age / 1.1); }
   }
 
+  // Follow camera: the orbit target glides onto the selected fish and carries the camera along,
+  // so orbit and zoom still work around the moving fish.
+  let following = false, flyIn = false, lastFollow = 0;
+  const followShift = new THREE.Vector3();
+  function follow(fish, now) {
+    const k = 1 - Math.exp(-Math.min(0.1, (now - lastFollow) / 1000) * 5);
+    lastFollow = now;
+    followShift.set(fish.x, fish.y, fish.z).sub(controls.target).multiplyScalar(k);
+    controls.target.add(followShift); camera.position.add(followShift);
+    if (flyIn) {
+      const distance = camera.position.distanceTo(controls.target), goal = 7.5;
+      camera.position.sub(controls.target).setLength(distance + (goal - distance) * k).add(controls.target);
+      flyIn = Math.abs(distance - goal) > 0.3;
+    }
+  }
+
   let view = 'perspective';
   function resetCamera(nextView = 'perspective') {
     view = nextView;
+    following = false; controls.minDistance = 6;
     const aspect = Math.max(0.3, container.clientWidth / Math.max(1, container.clientHeight));
     // Fit every tank corner, including its depth, for a large uncropped view.
     const direction = (view === 'top' ? new THREE.Vector3(0, 1, 0.001) : new THREE.Vector3(0.12, Math.max(0.32, Math.min(0.68, 1 / aspect)), 1)).normalize();
@@ -243,7 +313,7 @@ export function createScene(container) {
     const { clientWidth: w, clientHeight: h } = container;
     renderer.setSize(w, h);
     camera.aspect = w / Math.max(h, 1); camera.updateProjectionMatrix();
-    resetCamera(view);
+    if (!following) resetCamera(view);
   }
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(container); resize();
@@ -260,16 +330,44 @@ export function createScene(container) {
     return raycaster.ray;
   }
 
+
   return {
     domElement: renderer.domElement,
-    render(simulation, animator, predatorAnimator) {
-      update(simulation, animator, predatorAnimator, performance.now());
+    render(simulation, animator, predatorAnimator, selectedId = null) {
+      const now = performance.now();
+      update(simulation, animator, predatorAnimator, selectedId, now);
+      const target = following && selectedId !== null ? simulation.fish.find(f => f.id === selectedId) : null;
+      if (target) follow(target, now);
       controls.update();
+      const sight = target ? controls.target.distanceTo(camera.position) : 0;
+      if (target) raycaster.set(camera.position, direction.subVectors(controls.target, camera.position).normalize());
+      for (const mesh of obstacleMeshes.values())
+        mesh.material = target && raycaster.intersectObject(mesh, false).some(hit => hit.distance < sight - 0.3) ? rockFadeMaterial : rockMaterial;
       renderer.render(scene, camera);
     },
     resetCamera,
     setSwimEnabled(on) { swimUniforms.uSwimOn.value = on ? 1 : 0; },
     setColorMode(mode) { colorMode = mode; },
+    setShowRanges(on) { showRanges = on; },
+    // Follow on: glide to the selected fish and stay with it. Off: back to the overview.
+    setFollow(on) {
+      if (!on) { if (following) resetCamera(view); return; }
+      following = true; flyIn = true; lastFollow = performance.now(); controls.minDistance = 3.5;
+    },
+    // The fish closest to the click ray, if the ray passes within about a body length of it.
+    pickFish(clientX, clientY, fish) {
+      const ray = rayFrom(clientX, clientY);
+      let best = null, bestScore = Infinity;
+      const point = new THREE.Vector3();
+      for (const f of fish) {
+        point.set(f.x, f.y, f.z);
+        const along = point.clone().sub(ray.origin).dot(ray.direction);
+        if (along < 0) continue;
+        const tolerance = 0.9 + along * 0.012, score = ray.distanceToPoint(point) / tolerance + along * 0.002;
+        if (score < 1 + along * 0.002 && score < bestScore) { bestScore = score; best = f.id; }
+      }
+      return best;
+    },
     // Food is dropped where the click ray meets the water surface, inside the tank.
     surfacePoint(clientX, clientY) {
       if (!rayFrom(clientX, clientY).intersectPlane(surfacePlane, hit)) return null;
@@ -304,7 +402,10 @@ export function createScene(container) {
       const rect = renderer.domElement.getBoundingClientRect();
       return { x: (v.x + 1) / 2 * rect.width, y: (1 - v.y) / 2 * rect.height, visible: v.z < 1 };
     },
-    getInfo() { return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }; },
+    getInfo() {
+      const { x, y, z } = controls.target;
+      return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, target: { x, y, z } };
+    },
     dispose() {
       resizeObserver.disconnect(); controls.dispose();
       const geometries = new Set(), materials = new Set();

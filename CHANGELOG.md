@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.6.0 · Assignment 6 release candidate (2026-11-20)
+
+Live: https://polarfreeze.github.io/aquaswarm/v0.6/ · previous releases: https://polarfreeze.github.io/aquaswarm/v0.5/, https://polarfreeze.github.io/aquaswarm/v0.4/ and https://polarfreeze.github.io/aquaswarm/v0.3/
+
+Feature freeze from this release: until v1.0 only fixes, measurements and documentation.
+
+### New features
+
+- **Inspect a fish.** Inspect tool (I), then click a fish. The selected fish shows its perception sphere (7 u), its personal-space sphere (1.65 u), a velocity arrow in its state colour, a marker ring and a floating state tag. A panel lists its state and time in that state, speed, neighbours within 7 u, and the distance to the nearest pellet, the predator and the nearest rock. When a rock blocks the predator's line of sight, the panel says so.
+- **Follow camera.** **Follow** (V) glides the camera onto the selected fish and keeps it there; orbit and zoom still work. Rocks between the camera and the fish turn see-through.
+- **Sensing ranges.** A Display switch draws the food-attraction ring (13 u) around each pellet and the predator's flee rings (8 u enter, dashed 12 u exit).
+- **Rule presets.** **Compare rules** on the Rules tab: Default school, No separation, No alignment, No cohesion, All rules off, Tight school. Each applies the selected Boids settings and restarts the same scenario from seed 549 while preserving the obstacle layout. The preset stays on for Restart; the feeding challenge always uses the default rules.
+- **Selection rules.** Restart, a new scenario, the menu and a population change that removes the fish all clear the selection. Esc clears a selection before it ends the session.
+- **Backup demo video.** `npm run record` now records the final demo route (`evidence/assignment-6-demo.webm`, with captions and chapters).
+- **A5 environment carried forward.** Explore starts with the default five obstacles. Behaviour presets, Boids presets and Restart preserve the layout. Inspection works in open water. The published A5 build remains available at `/v0.5/`.
+
+### Fixes
+
+- Clicking a switch left keyboard focus on it, so shortcuts such as V or Esc did nothing until you clicked elsewhere. Switches now drop focus after a mouse click (keyboard focus stays).
+- An obstacle test assumed every fish ends the run below the cruise speed limit. With the predator in the tank a fish can still be fleeing at that moment; the test passed only because none was. It now allows flee speed in that case (found while trying the finer grid, which changed the trajectories).
+
+### Known issues
+
+- **No speed-up for 2000-fish crowds.** I tried the planned neighbour cap (a fish with enough close neighbours skips the outer half of its perception range) and a finer grid (3.5 u cells, 5×5×5 block). The cap made 1000 fish slower at every setting I tried (96, 64, 32), probably because a capped school packs tighter and so has more body contacts; caps of 64 and 32 sped up 2000 fish (about 13% and 20%, respectively), and that cap also changes how a 100-fish school behaves. The finer grid made 2000 feeding fish 20–27% faster in Node but 1000 cruising fish up to 20% slower. Neither was a clear win, so I kept the A5 neighbour search, so the simulation step is unchanged from v0.5.0. 2000 fish stays a stress-test level; the default 100 fish run at full frame rate.
+- The inspector's neighbour count uses all fish within 7 u, as the Boids rules do; it does not show which of them the fish is actually steering away from.
+- In the follow camera, a fish inside a dense feeding crowd can be hidden by its neighbours. The marker ring and tag still show where it is.
+- **Browser FPS on my laptop varies across test configurations.** Three follow-up runs in Playwright's headless shell gave 45–60 FPS at 1000 fish and 15–28 FPS at 2000, and `evidence/performance-a6.json` caught a fast run (100 FPS at 1000 fish, 30 at 2000) with a simulation step identical to v0.5.0. The main benchmark used full Chromium. Use the same browser mode and workload for comparisons. A visible-browser check on the presentation device is planned. FPS in a visible browser tab is capped by the display refresh rate.
+
 ## v0.5.0 · Assignment 5 obstacles (2026-11-10)
 
 Live: https://polarfreeze.github.io/aquaswarm/ · previous releases: https://polarfreeze.github.io/aquaswarm/v0.4/ and https://polarfreeze.github.io/aquaswarm/v0.3/
